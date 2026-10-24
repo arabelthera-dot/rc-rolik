@@ -1,7 +1,9 @@
 # Ролики «Русской цивилизации» — сборка на машинах GitHub
 
-Шаблон ролика дня на Remotion. Голос, слои и звук готовятся у нас (`scripts/day.sh` до рендера),
-сам рендер — здесь, сценарий `.github/workflows/render.yml`: каждый файл на своей машине.
+Шаблон ролика дня на Remotion. Слои кадров (`scripts/layers.py`) готовятся у нас и лежат в `public/days/`;
+голос (`scripts/tts.py`, словарь `udareniya.json`), звук (`scripts/sfx.py`) и рендер — здесь, сценарий
+`.github/workflows/render.yml`: озвучка один раз на день, каждый файл ролика на своей машине.
+Поправили словарь или сценарий — достаточно коммита и запуска; `-f ozvuchka=false` — взять готовую озвучку из репо.
 
 Запуск: `gh workflow run render.yml -R arabelthera-dot/rc-rolik -f zadacha="05jan:AB"`;
 готовое — `gh run download <номер> -R arabelthera-dot/rc-rolik -D out/`.
