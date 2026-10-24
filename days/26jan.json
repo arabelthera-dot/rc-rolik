@@ -93,7 +93,7 @@
  ],
  "images": {
   "otchet_verh": {
-   "src": "lab/rolik-remotion/kadry/26jan/cover.jpg",
+   "src": "kadry/26jan/cover.jpg",
    "crop": [
     0,
     0.0,
@@ -103,21 +103,21 @@
    "parallax": false
   },
   "more": {
-   "src": "lab/rolik-remotion/kadry/26jan/more.jpg",
+   "src": "kadry/26jan/more.jpg",
    "parallax": false,
    "label": "Рисунок музея"
   },
   "yashik": {
-   "src": "lab/rolik-remotion/kadry/26jan/yashik.jpg",
+   "src": "kadry/26jan/yashik.jpg",
    "parallax": false,
    "label": "Рисунок музея"
   },
   "apparat": {
-   "src": "lab/rolik-remotion/kadry/26jan/day-26jan-aerofotoapparat.jpg",
+   "src": "kadry/26jan/day-26jan-aerofotoapparat.jpg",
    "parallax": false
   },
   "portret": {
-   "src": "lab/rolik-remotion/kadry/26jan/day-26jan-sreznevskiy-portret.jpg",
+   "src": "kadry/26jan/day-26jan-sreznevskiy-portret.jpg",
    "parallax": false
   }
  }

@@ -1,10 +1,10 @@
 """2.5D: каждый подлинный кадр -> bg.jpg (фон, передний план заделан inpaint) + fg.png (передний план с альфой).
-Передний план: band — нижняя полоса с мягким краем; fg_rect — GrabCut по прямоугольнику fg_rect из days/<id>.json (доли ширины/высоты)."""
+Передний план: band — нижняя полоса с мягким краем; fg_rect — GrabCut по прямоугольнику fg_rect из days/<id>.json (доли ширины/высоты).
+Картинки — из самого репо (src от корня, обычно kadry/<id>/), чтобы слои собирались в облаке (render.yml, шаг layers; Р249)."""
 import json, sys, pathlib
 import cv2, numpy as np
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
-PROJ = ROOT.parent.parent  # ~/projects/russian-civilization
 TARGET = 2200  # длинная сторона после увеличения
 
 def up(img):
@@ -20,7 +20,9 @@ def main(day):
     out.mkdir(parents=True, exist_ok=True)
     meta = {}
     for key, im in cfg["images"].items():
-        img = cv2.imread(str(PROJ / im["src"]))
+        img = cv2.imread(str(ROOT / im["src"]))
+        if img is None:
+            sys.exit(f"нет картинки {im['src']} в репо (кадр {key}) — положи её в kadry/{day}/ и закоммить")
         if im.get("crop"):  # [x0,y0,x1,y1] доли — убрать водяные знаки/поля
             h, w = img.shape[:2]; x0, y0, x1, y1 = im["crop"]
             img = img[int(y0*h):int(y1*h), int(x0*w):int(x1*w)]

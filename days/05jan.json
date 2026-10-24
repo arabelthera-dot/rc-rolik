@@ -57,16 +57,16 @@
  ],
  "images": {
   "karavan": {
-   "src": "pilot-izobreteniya/day-05jan-shukhov-karavan.jpg",
+   "src": "kadry/05jan/day-05jan-shukhov-karavan.jpg",
    "band": 0.42,
    "parallax": false
   },
   "podvoda": {
-   "src": "pilot-izobreteniya/day-05jan-shukhov-podvoda.jpg",
+   "src": "kadry/05jan/day-05jan-shukhov-podvoda.jpg",
    "band": 0.4
   },
   "portret": {
-   "src": "pilot-izobreteniya/day-05jan-shukhov-portret.jpg",
+   "src": "kadry/05jan/day-05jan-shukhov-portret.jpg",
    "fg_rect": [
     0.05,
     0.08,
@@ -75,11 +75,11 @@
    ]
   },
   "balakhany": {
-   "src": "pilot-izobreteniya/day-05jan-shukhov-balakhany1880.jpg",
+   "src": "kadry/05jan/day-05jan-shukhov-balakhany1880.jpg",
    "band": 0.55
   },
   "shabolovka": {
-   "src": "pilot-izobreteniya/day-05jan-shukhov-shabolovka.jpg",
+   "src": "kadry/05jan/day-05jan-shukhov-shabolovka.jpg",
    "band": 0.8
   }
  },
