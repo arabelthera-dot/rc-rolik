@@ -1,0 +1,32 @@
+{
+ "otchet_verh": {
+  "w": 2200,
+  "h": 1379,
+  "fg": false,
+  "label": null
+ },
+ "more": {
+  "w": 1848,
+  "h": 2200,
+  "fg": false,
+  "label": "\u0420\u0438\u0441\u0443\u043d\u043e\u043a \u043c\u0443\u0437\u0435\u044f"
+ },
+ "yashik": {
+  "w": 2200,
+  "h": 1211,
+  "fg": false,
+  "label": "\u0420\u0438\u0441\u0443\u043d\u043e\u043a \u043c\u0443\u0437\u0435\u044f"
+ },
+ "apparat": {
+  "w": 1975,
+  "h": 2200,
+  "fg": false,
+  "label": null
+ },
+ "portret": {
+  "w": 1552,
+  "h": 2200,
+  "fg": false,
+  "label": null
+ }
+}

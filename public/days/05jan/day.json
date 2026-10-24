@@ -1,0 +1,91 @@
+{
+ "id": "05jan",
+ "source_md": "pilot-izobreteniya/day-05jan-shukhov.md",
+ "voice": "ru-RU-DmitryNeural",
+ "rate": "+18%",
+ "segments": [
+  {
+   "id": "hook",
+   "say": "Русский инженер Шухов первым в мире рассчитал нефтепровод — и нефть потекла сама.",
+   "image": "karavan",
+   "fx": "pipe-sweep"
+  },
+  {
+   "id": "bochki",
+   "say": "Баку, тысяча восемьсот семидесятые. Нефть возили в бочках на арбах — и перевозка бочки стоила дороже самой нефти.",
+   "show": "Баку, 1870-е. Нефть возили в бочках на арбах — и перевозка бочки стоила дороже самой нефти.",
+   "image": "podvoda",
+   "fx": "dust"
+  },
+  {
+   "id": "formuly",
+   "say": "Двадцатичетырёхлетний Шухов вывел точные формулы: диаметр трубы, давление насосов, вязкость нефти.",
+   "show": "24-летний Шухов вывел точные формулы: диаметр трубы, давление насосов, вязкость нефти.",
+   "image": "portret",
+   "fx": "formulas"
+  },
+  {
+   "id": "pusk",
+   "say": "Пятого января тысяча восемьсот семьдесят восьмого года труба заработала. Десять километров — от промыслов Балаханы до Чёрного города. До восьмидесяти тысяч пудов нефти в сутки.",
+   "show": "5 января 1878 года труба заработала. 10 километров — от промыслов Балаханы до Чёрного города. До 80 000 пудов нефти в сутки.",
+   "image": "balakhany",
+   "fx": "pipeline-map",
+   "labels": {
+    "from": "Балаханы",
+    "from_key": "Балахан",
+    "to": "Чёрный город",
+    "to_key": "Чёрного",
+    "km": "10 км",
+    "km_key": "10",
+    "vol": "до 80 000 пудов в сутки",
+    "vol_key": "80"
+   }
+  },
+  {
+   "id": "bashnya",
+   "say": "А ещё Шухов построил ту самую ажурную башню на Шаболовке. И по его формулам трубопроводы проектируют до сих пор.",
+   "image": "shabolovka",
+   "fx": "tower-mesh"
+  },
+  {
+   "id": "cta",
+   "say": "Смотри день целиком на сайте рашн-цивилизейшн точка ру.",
+   "show": "Смотри день целиком на russian-civilization.ru",
+   "image": null,
+   "fx": "endcard"
+  }
+ ],
+ "images": {
+  "karavan": {
+   "src": "pilot-izobreteniya/day-05jan-shukhov-karavan.jpg",
+   "band": 0.42,
+   "parallax": false
+  },
+  "podvoda": {
+   "src": "pilot-izobreteniya/day-05jan-shukhov-podvoda.jpg",
+   "band": 0.4
+  },
+  "portret": {
+   "src": "pilot-izobreteniya/day-05jan-shukhov-portret.jpg",
+   "fg_rect": [
+    0.05,
+    0.08,
+    0.95,
+    1.0
+   ]
+  },
+  "balakhany": {
+   "src": "pilot-izobreteniya/day-05jan-shukhov-balakhany1880.jpg",
+   "band": 0.55
+  },
+  "shabolovka": {
+   "src": "pilot-izobreteniya/day-05jan-shukhov-shabolovka.jpg",
+   "band": 0.8
+  }
+ },
+ "insert_b": {
+  "file": "insert-05jan.mp4",
+  "label": "реконструкция",
+  "seconds": 5
+ }
+}

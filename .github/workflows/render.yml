@@ -1,0 +1,57 @@
+# Сборка роликов на машинах GitHub (Р243, 24.10.2026): наш сервер не нагружается,
+# каждый файл — отдельная машина (4 ядра, 16 ГБ), до 20 параллельно; репо открытый — минуты бесплатны.
+# Запуск: gh workflow run render.yml -f zadacha="05jan:AB 26jan:A"   (день:варианты, через пробел)
+name: render
+on:
+  workflow_dispatch:
+    inputs:
+      zadacha:
+        description: "день:варианты через пробел, напр. 05jan:AB 26jan:A"
+        required: true
+      format:
+        description: "16x9, 9x16 или оба"
+        default: "oba"
+concurrency:
+  group: render-${{ github.run_id }}
+jobs:
+  plan:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.m.outputs.matrix }}
+    steps:
+      - id: m
+        env:
+          ZADACHA: ${{ inputs.zadacha }}
+          FORMAT: ${{ inputs.format }}
+        run: |
+          fmts="16x9 9x16"; [ "$FORMAT" = "oba" ] || fmts="$FORMAT"
+          items=""
+          for z in $ZADACHA; do
+            d=${z%%:*}; vs=${z#*:}; [ "$vs" = "$z" ] && vs=A
+            for v in $(echo "$vs" | grep -o .); do for f in $fmts; do
+              items="$items{\"day\":\"$d\",\"v\":\"$v\",\"f\":\"$f\"},"
+            done; done
+          done
+          echo "matrix={\"include\":[${items%,}]}" >> "$GITHUB_OUTPUT"
+  render:
+    needs: plan
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJson(needs.plan.outputs.matrix) }}
+    name: ${{ matrix.day }}-${{ matrix.v }}-${{ matrix.f }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg
+      - run: npm ci
+      - run: node scripts/render.mjs "${{ matrix.day }}" "${{ matrix.v }}" "${{ matrix.f }}"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.day }}-${{ matrix.v }}-${{ matrix.f }}
+          path: out/*.mp4
+          retention-days: 14

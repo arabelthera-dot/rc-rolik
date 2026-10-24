@@ -1,0 +1,32 @@
+{
+ "karavan": {
+  "w": 2200,
+  "h": 1265,
+  "fg": false,
+  "label": null
+ },
+ "podvoda": {
+  "w": 2200,
+  "h": 1027,
+  "fg": true,
+  "label": null
+ },
+ "portret": {
+  "w": 1456,
+  "h": 2200,
+  "fg": true,
+  "label": null
+ },
+ "balakhany": {
+  "w": 2200,
+  "h": 994,
+  "fg": true,
+  "label": null
+ },
+ "shabolovka": {
+  "w": 2200,
+  "h": 2200,
+  "fg": true,
+  "label": null
+ }
+}
