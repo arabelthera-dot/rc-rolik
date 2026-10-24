@@ -1,9 +1,12 @@
 # Ролики «Русской цивилизации» — сборка на машинах GitHub
 
-Шаблон ролика дня на Remotion. Слои кадров (`scripts/layers.py`) готовятся у нас и лежат в `public/days/`;
-голос (`scripts/tts.py`, словарь `udareniya.json`), звук (`scripts/sfx.py`) и рендер — здесь, сценарий
-`.github/workflows/render.yml`: озвучка один раз на день, каждый файл ролика на своей машине.
-Поправили словарь или сценарий — достаточно коммита и запуска; `-f ozvuchka=false` — взять готовую озвучку из репо.
+Шаблон ролика дня на Remotion. Всё собирается здесь, сценарий `.github/workflows/render.yml`: слои кадров
+(`scripts/layers.py`, подлинные кадры из `kadry/<день>/`), голос (`scripts/tts.py`, словарь `udareniya.json`) и звук
+(`scripts/sfx.py`) — один раз на день, каждый файл ролика — на своей машине.
+Поправили словарь или сценарий — достаточно коммита и запуска; `-f ozvuchka=false` / `-f sloi=false` — взять готовую озвучку / слои из репо.
+
+Новый день: `days/<день>.json` (src картинок — от корня репо, `kadry/<день>/…`) и картинки в `kadry/<день>/`, затем
+`scripts/day.sh <день> AB` — коммит, прогон в облаке, готовое в `out/`. Локальная сборка — только `--lokalno` (против Р243).
 
 Запуск: `gh workflow run render.yml -R arabelthera-dot/rc-rolik -f zadacha="05jan:AB"`;
 готовое — `gh run download <номер> -R arabelthera-dot/rc-rolik -D out/`.
@@ -14,9 +17,10 @@
 
 ## Новый день одной строкой
 ```bash
-scripts/day.sh <день> AB     # days/<день>.json -> голос, слои, звук -> out/<день>-{A,B}-{16x9,9x16}.mp4
+scripts/day.sh <день> AB [16x9|9x16|oba]   # коммит days/<день>.json + kadry/<день>/ -> render.yml -> out/<день>-{A,B}-{16x9,9x16}.mp4
 ```
-Для варианта B заранее положить `public/days/<день>/insert.mp4`; без вставки — `scripts/day.sh <день> A`. Рендер одного файла 16:9 — ~10 мин на 8 ядрах, 4 файла ~45 мин: запускать отдельным процессом (`setsid nohup scripts/day.sh … > log &`), не ждать в одном вызове.
+Для варианта B заранее положить `public/days/<день>/insert.mp4`; без вставки — `scripts/day.sh <день> A`. Облако недоступно — day.sh пишет «облако недоступно» и выходит с кодом 2.
+Ниже — старая локальная сборка (`scripts/day.sh … --lokalno`), только в крайнем случае.
 Проверено 24.10 на копии 05jan: json -> все ресурсы в public/days/<день>/ -> стоп-кадр композиции.
 
 ## Как собрать день (по шагам)
@@ -41,7 +45,7 @@ Chromium: `~/.cache/ms-playwright/chromium_headless_shell-1234/.../chrome-headle
 Чужой музыки нет. Гул-подложка, удар и «вжухи» синтезированы `scripts/sfx.py` (numpy/scipy) — собственная работа, CC0. Голос — Microsoft Edge TTS.
 
 ## Источники кадров
-Подлинные кадры из `pilot-izobreteniya/day-05jan-shukhov-*.jpg`: karavan, podvoda, portret, balakhany1880, shabolovka. Не взяты: poster.jpg (сгенерирован, не подлинник), promysel1888 (водяной знак Azerhistory), velo (нет факта в md).
+Подлинные кадры `kadry/05jan/day-05jan-shukhov-*.jpg` (те же файлы открыто лежат в rc-museum-preview `muzei/izobreteniya/`; архивные снимки 1880–1920-х, авторы неизвестны, общественное достояние): karavan, podvoda, portret, balakhany1880, shabolovka. Не взяты: poster.jpg (сгенерирован, не подлинник), promysel1888 (водяной знак Azerhistory), velo (нет факта в md).
 Вставка Б: `genosai/insert-raw.mp4` — veo-3.1-lite 6 с по образцу `genosai/probe2.jpg` (z-image), в кадре подпись «реконструкция». Кредиты: 1+1 (z-image) + 35 (veo) = 37.
 
 ## ПЕРЕДАЧА (24.10, arabelthera-dot)
