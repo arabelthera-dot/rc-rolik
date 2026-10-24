@@ -1,6 +1,8 @@
 # Сборка роликов на машинах GitHub (Р243, 24.10.2026): наш сервер не нагружается,
 # каждый файл — отдельная машина (4 ядра, 16 ГБ), до 20 параллельно; репо открытый — минуты бесплатны.
 # Запуск: gh workflow run render.yml -f zadacha="05jan:AB 26jan:A"   (день:варианты, через пробел)
+# Озвучка (Р248): при ozvuchka=true голос (scripts/tts.py, словарь udareniya.json) и звук (scripts/sfx.py)
+# синтезируются здесь же — один раз на день, все варианты берут одну и ту же. false — берётся готовая из репо.
 name: render
 on:
   workflow_dispatch:
@@ -11,6 +13,10 @@ on:
       format:
         description: "16x9, 9x16 или оба"
         default: "oba"
+      ozvuchka:
+        description: "синтезировать озвучку в облаке (false — готовая из репо)"
+        type: boolean
+        default: false
 concurrency:
   group: render-${{ github.run_id }}
 jobs:
@@ -18,6 +24,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       matrix: ${{ steps.m.outputs.matrix }}
+      days: ${{ steps.m.outputs.days }}
     steps:
       - id: m
         env:
@@ -25,16 +32,50 @@ jobs:
           FORMAT: ${{ inputs.format }}
         run: |
           fmts="16x9 9x16"; [ "$FORMAT" = "oba" ] || fmts="$FORMAT"
-          items=""
+          items=""; days=""
           for z in $ZADACHA; do
             d=${z%%:*}; vs=${z#*:}; [ "$vs" = "$z" ] && vs=A
+            case "$days" in *"\"$d\""*) ;; *) days="$days\"$d\",";; esac
             for v in $(echo "$vs" | grep -o .); do for f in $fmts; do
               items="$items{\"day\":\"$d\",\"v\":\"$v\",\"f\":\"$f\"},"
             done; done
           done
           echo "matrix={\"include\":[${items%,}]}" >> "$GITHUB_OUTPUT"
-  render:
+          echo "days=[${days%,}]" >> "$GITHUB_OUTPUT"
+  ozvuchka:
     needs: plan
+    if: inputs.ozvuchka
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        day: ${{ fromJson(needs.plan.outputs.days) }}
+    name: ozvuchka-${{ matrix.day }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg
+      - run: pip install -q edge-tts==7.3.1 numpy==2.4.6 scipy==1.17.1
+      - run: python scripts/tts.py "${{ matrix.day }}"
+      - run: python scripts/sfx.py "${{ matrix.day }}"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ozvuchka-${{ matrix.day }}
+          path: |
+            public/days/${{ matrix.day }}/seg*.mp3
+            public/days/${{ matrix.day }}/voice.mp3
+            public/days/${{ matrix.day }}/sfx.wav
+            public/days/${{ matrix.day }}/mix.mp3
+            public/days/${{ matrix.day }}/timeline.json
+            public/days/${{ matrix.day }}/day.json
+          retention-days: 14
+  render:
+    needs: [plan, ozvuchka]
+    # без озвучки ozvuchka пропущена (skipped) — рендер идёт по-старому; упала — рендера нет
+    if: always() && needs.plan.result == 'success' && (needs.ozvuchka.result == 'success' || needs.ozvuchka.result == 'skipped')
     runs-on: ubuntu-latest
     timeout-minutes: 60
     strategy:
@@ -43,6 +84,11 @@ jobs:
     name: ${{ matrix.day }}-${{ matrix.v }}-${{ matrix.f }}
     steps:
       - uses: actions/checkout@v4
+      - if: inputs.ozvuchka
+        uses: actions/download-artifact@v4
+        with:
+          name: ozvuchka-${{ matrix.day }}
+          path: public/days/${{ matrix.day }}
       - uses: actions/setup-node@v4
         with:
           node-version: 22
