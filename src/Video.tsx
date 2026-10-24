@@ -270,20 +270,40 @@ const Altitude: React.FC<{W: number; H: number; seg: TSeg; t0: number; area: [nu
   );
 };
 
-// квадрат пластинки с подписью размера, появляется на слове key
-const PlateFrame: React.FC<{W: number; H: number; seg: TSeg; t0: number; cx: number; cy: number; side: number; labels: any}> = ({W, H, seg, t0, cx, cy, side, labels}) => {
+// квадрат пластинки с подписью размера, появляется на слове key.
+// Рамка — только с содержимым (r254): labels.image — кадр дня внутри рамки, labels.steklo — рамка сама изображает
+// стеклянную пластинку (26jan). Без содержимого пустой рамки нет — только надпись крупно (проверка — scripts/check.mjs).
+const PlateFrame: React.FC<{W: number; H: number; seg: TSeg; t0: number; cx: number; cy: number; side: number; labels: any; day: string}> = ({W, H, seg, t0, cx, cy, side, labels, day}) => {
   const f = useCurrentFrame();
   const {fps} = useVideoConfig();
   const tk = wordTime(seg, labels.key, seg.start + 4);
   const k = interpolate(t0 + f / fps, [tk - 0.2, tk + 0.6], [0, 1], {...clamp, easing: ease});
   const L = side * 4;
+  const img: string | undefined = labels.image;
+  if (!img && !labels.steklo) {
+    const fs = Math.max(side * 0.3, 64);
+    const uw = Math.min(W * 0.4, side * 1.4);
+    return (
+      <svg width={W} height={H} style={{position: 'absolute', inset: 0}}>
+        <text x={cx} y={cy + fs * 0.35} textAnchor="middle" opacity={k} style={{fontFamily: 'Inter', fontWeight: 800, fontSize: fs, fill: AMBER}}>{labels.text}</text>
+        <line x1={cx - uw / 2} y1={cy + fs * 0.75} x2={cx - uw / 2 + uw * k} y2={cy + fs * 0.75} stroke={AMBER} strokeWidth={4} strokeLinecap="round" opacity={0.8} />
+      </svg>
+    );
+  }
   return (
-    <svg width={W} height={H} style={{position: 'absolute', inset: 0}}>
-      <rect x={cx - side / 2} y={cy - side / 2} width={side} height={side} fill={`rgba(200,225,235,${0.10 * k})`} stroke={AMBER} strokeWidth={4}
-        strokeDasharray={L} strokeDashoffset={L * (1 - k)} />
-      <line x1={cx - side / 2 + side * 0.1} y1={cy - side / 2 + side * 0.12} x2={cx - side / 2 + side * 0.3} y2={cy - side / 2 + side * 0.08} stroke="#fff" strokeWidth={3} opacity={0.6 * k} />
-      <text x={cx} y={cy + side / 2 + side * 0.2} textAnchor="middle" opacity={k} style={{fontFamily: 'Inter', fontWeight: 800, fontSize: Math.max(side * 0.16, 48), fill: AMBER}}>{labels.text}</text>
-    </svg>
+    <>
+      {img && (
+        <div style={{position: 'absolute', left: cx - side / 2, top: cy - side / 2, width: side, height: side, overflow: 'hidden', opacity: k}}>
+          <Img src={staticFile(`days/${day}/${img}-bg.jpg`)} style={{width: '100%', height: '100%', objectFit: 'cover'}} />
+        </div>
+      )}
+      <svg width={W} height={H} style={{position: 'absolute', inset: 0}}>
+        <rect x={cx - side / 2} y={cy - side / 2} width={side} height={side} fill={img ? 'none' : `rgba(200,225,235,${0.10 * k})`} stroke={AMBER} strokeWidth={4}
+          strokeDasharray={L} strokeDashoffset={L * (1 - k)} />
+        {!img && <line x1={cx - side / 2 + side * 0.1} y1={cy - side / 2 + side * 0.12} x2={cx - side / 2 + side * 0.3} y2={cy - side / 2 + side * 0.08} stroke="#fff" strokeWidth={3} opacity={0.6 * k} />}
+        <text x={cx} y={cy + side / 2 + side * 0.2} textAnchor="middle" opacity={k} style={{fontFamily: 'Inter', fontWeight: 800, fontSize: Math.max(side * 0.16, 48), fill: AMBER}}>{labels.text}</text>
+      </svg>
+    </>
   );
 };
 
@@ -444,11 +464,11 @@ const Scene: React.FC<{props: Props; seg: DaySeg; tseg: TSeg; t0: number; dur: n
   } else if (fx === 'plate') {
     body = vertical ? (
       <>{blurBg}{panel(W * 0.08, H * 0.07, W * 0.84, H * 0.47, 'zoom')}
-        <PlateFrame W={W} H={H} seg={tseg} t0={t0} cx={W * 0.5} cy={H * 0.64} side={H * 0.12} labels={labels} /></>
+        <PlateFrame W={W} H={H} seg={tseg} t0={t0} cx={W * 0.5} cy={H * 0.64} side={H * 0.12} labels={labels} day={day} /></>
     ) : (
       <><AbsoluteFill style={{background: `linear-gradient(90deg, ${INK}, #15120d)`}} />
         {panel(W * 0.5, 0, W * 0.5, H, 'zoom')}
-        <PlateFrame W={W} H={H} seg={tseg} t0={t0} cx={W * 0.25} cy={H * 0.36} side={H * 0.36} labels={labels} /></>
+        <PlateFrame W={W} H={H} seg={tseg} t0={t0} cx={W * 0.25} cy={H * 0.36} side={H * 0.36} labels={labels} day={day} /></>
     );
   } else if (fx === 'years') {
     body = vertical ? (

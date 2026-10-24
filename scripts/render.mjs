@@ -5,11 +5,14 @@ import {execFileSync} from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
+import {checkDays} from './check.mjs';
 
 const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..');
 const day = process.argv[2];
 const variants = (process.argv[3] || 'A').split('');
 const only = process.argv[4]; // необязательно: 16x9 или 9x16
+// сценарий дня до сборки: fx plate без содержимого и т. п. (scripts/check.mjs, r254) — ошибка валит сборку
+if (!checkDays([day])) { console.error(`days/${day}.json не прошёл проверку — сборки нет`); process.exit(1); }
 
 // Бережная сборка (Михаил, 24.10.2026: сервер завис — remotion, Chrome и ffmpeg заняли все ядра и 6 ГБ).
 // Потоков не больше 2, ffmpeg на 2 ядрах, один ролик на весь сервер за раз (замок). Нужно больше — карточка Михаилу.

@@ -30,7 +30,8 @@
    "fx": "plate",
    "labels": {
     "text": "24 × 24 см",
-    "key": "24×24"
+    "key": "24×24",
+    "steklo": true
    }
   },
   {

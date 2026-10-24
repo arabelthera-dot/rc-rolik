@@ -8,6 +8,10 @@
 Новый день: `days/<день>.json` (src картинок — от корня репо, `kadry/<день>/…`) и картинки в `kadry/<день>/`, затем
 `scripts/day.sh <день> AB` — коммит, прогон в облаке, готовое в `out/`. Локальная сборка — только `--lokalno` (против Р243).
 
+Проверка сценариев: `node scripts/check.mjs [день]` (её же зовут day.sh и render.mjs — ошибка валит сборку). `fx plate`: рамка рисуется
+только с содержимым — `labels.image` (ключ из `images` дня, кадр внутри рамки) или `labels.steklo: true` (рамка сама — стеклянная
+пластинка, 26jan); без них — только надпись `labels.text` крупно, пустой рамки нет (r254).
+
 Запуск: `gh workflow run render.yml -R arabelthera-dot/rc-rolik -f zadacha="05jan:AB"`;
 готовое — `gh run download <номер> -R arabelthera-dot/rc-rolik -D out/`.
 

@@ -24,6 +24,8 @@ miss = [im["src"] for im in json.loads(pathlib.Path(f"days/{day}.json").read_tex
 if miss:
     sys.exit("нет картинок в репо (src — от корня rc-rolik, обычно kadry/%s/):\n  " % day + "\n  ".join(miss))
 E
+# сценарий: fx plate без содержимого и т. п. (scripts/check.mjs, r254) — то же падение, что в облаке, но до пуша
+node scripts/check.mjs "$DAY" || exit 1
 
 if [ -n "$LOKALNO" ]; then
   echo "ВНИМАНИЕ: --lokalno — сборка на нашем сервере, против Р243 (ролики — в GitHub Actions). Только если облако недоступно и Михаил согласен."
