@@ -4,6 +4,7 @@ import {
   random, staticFile, useCurrentFrame, useVideoConfig, Easing,
 } from 'remotion';
 import {DaySeg, ImgMeta, Props, TSeg, Word} from './types';
+import LAYOUT from './layout.json';
 
 const AMBER = '#f2b84b';
 const INK = '#0c0b09';
@@ -310,7 +311,9 @@ const PlateFrame: React.FC<{W: number; H: number; seg: TSeg; t0: number; cx: num
   );
 };
 
-// лента лет: карточки появляются на своём слове; win — подсвечена
+// лента лет: карточки появляются на своём слове; win — подсвечена.
+// r265: первая карточка — с начала сцены (иначе в 16:9 правая половина пустая до слова key, 03/06 янв.);
+// год — одной строкой (было «40–/50 к.»), длинный год мельче (до LAYOUT.y_max знаков — scripts/check.mjs)
 const Years: React.FC<{seg: TSeg; t0: number; area: [number, number, number, number]; labels: any; vertical: boolean}> = ({seg, t0, area, labels, vertical}) => {
   const f = useCurrentFrame();
   const {fps} = useVideoConfig();
@@ -322,13 +325,16 @@ const Years: React.FC<{seg: TSeg; t0: number; area: [number, number, number, num
     <div style={{position: 'absolute', left: ax, top: ay, width: aw, height: ah}}>
       {items.map((it, i) => {
         const tk = it.key ? wordTime(seg, it.key, seg.start + 1 + i) : -1;
-        const k = it.key ? interpolate(tNow, [tk - 0.15, tk + 0.35], [0, 1], {...clamp, easing: ease}) : 1;
+        const k = i === 0 ? interpolate(f, [0, 12], [0, 1], {...clamp, easing: ease})
+          : it.key ? interpolate(tNow, [tk - 0.15, tk + 0.35], [0, 1], {...clamp, easing: ease}) : 1;
+        const yLen = String(it.y).length;
         return (
           <div key={i} style={{position: 'absolute', left: 0, top: i * (rowH + gap), width: aw, height: rowH, opacity: k,
             transform: `translateX(${(1 - k) * 40}px)`, display: 'flex', alignItems: 'center', gap: 26, padding: '0 28px', boxSizing: 'border-box',
             background: it.win ? 'rgba(242,184,75,.16)' : 'rgba(10,9,7,.76)', border: `2px solid ${it.win ? AMBER : 'rgba(255,255,255,.18)'}`, borderRadius: 18,
             fontFamily: 'Inter', color: '#fff'}}>
-            <div style={{fontWeight: 800, fontSize: rowH * 0.42, color: it.win ? AMBER : '#fff', letterSpacing: -1}}>{it.y}</div>
+            <div style={{fontWeight: 800, fontSize: rowH * 0.42 * Math.min(1, 5.5 / Math.max(yLen, 1)), color: it.win ? AMBER : '#fff', letterSpacing: -1,
+              whiteSpace: 'nowrap', flexShrink: 0}}>{it.y}</div>
             <div style={{fontWeight: 600, fontSize: rowH * (vertical ? 0.24 : 0.22), lineHeight: 1.15}}>{it.t}</div>
           </div>
         );
@@ -379,13 +385,14 @@ const Subtitles: React.FC<{segs: TSeg[]; vertical: boolean; hideFrom: number}> =
   const c = chunks.find((x) => t >= x.start - 0.08 && t < x.end);
   if (!c || t >= hideFrom) return null;
   const pop = interpolate(t, [c.start - 0.08, c.start + 0.1], [0.92, 1], clamp);
-  const fs = vertical ? 66 : 58;
+  const S = LAYOUT.sub;
+  const fs = vertical ? S.font_v : S.font_h;
   return (
-    <div style={{position: 'absolute', left: 0, right: 0, bottom: vertical ? height * 0.13 : height * 0.06, display: 'flex', justifyContent: 'center'}}>
+    <div style={{position: 'absolute', left: 0, right: 0, bottom: height * (vertical ? S.bottom_v : S.bottom_h), display: 'flex', justifyContent: 'center'}}>
       <div style={{
-        maxWidth: vertical ? width * 0.9 : width * 0.78, padding: vertical ? '22px 34px' : '16px 34px', borderRadius: 18,
-        background: 'rgba(8,7,5,.82)', borderBottom: `4px solid ${AMBER}`, transform: `scale(${pop})`,
-        fontFamily: 'Inter', fontWeight: 800, fontSize: fs, lineHeight: 1.18, color: '#fff', textAlign: 'center',
+        maxWidth: vertical ? width * 0.9 : width * 0.78, padding: `${vertical ? S.pad_v : S.pad_h}px 34px`, borderRadius: 18,
+        background: 'rgba(8,7,5,.82)', borderBottom: `${S.border}px solid ${AMBER}`, transform: `scale(${pop})`,
+        fontFamily: 'Inter', fontWeight: 800, fontSize: fs, lineHeight: S.line, color: '#fff', textAlign: 'center',
         letterSpacing: -0.5, boxShadow: '0 10px 40px rgba(0,0,0,.5)',
       }}>
         {c.words.map((w, i) => {
@@ -398,11 +405,11 @@ const Subtitles: React.FC<{segs: TSeg[]; vertical: boolean; hideFrom: number}> =
 };
 
 // ---------- сцена ----------
-const Scene: React.FC<{props: Props; seg: DaySeg; tseg: TSeg; t0: number; dur: number; vertical: boolean; first: boolean; videoBg?: string}> = ({props, seg, tseg, t0, dur, vertical, first, videoBg}) => {
+const Scene: React.FC<{props: Props; seg: DaySeg; tseg: TSeg; t0: number; dur: number; vertical: boolean; first: boolean; cut?: boolean; videoBg?: string}> = ({props, seg, tseg, t0, dur, vertical, first, cut, videoBg}) => {
   const f = useCurrentFrame();
   const {width: W, height: H} = useVideoConfig();
   const p = f / dur;
-  const fade = first ? 1 : interpolate(f, [0, XF], [0, 1], clamp);
+  const fade = first || cut ? 1 : interpolate(f, [0, XF], [0, 1], clamp);
   const meta = props.images!;
   const day = props.day;
   const k = seg.image || '';
@@ -480,11 +487,11 @@ const Scene: React.FC<{props: Props; seg: DaySeg; tseg: TSeg; t0: number; dur: n
   } else if (fx === 'years') {
     body = vertical ? (
       <>{blurBg}{panel(0, H * 0.06, W, H * 0.42, 'zoom')}
-        <Years seg={tseg} t0={t0} area={[W * 0.06, H * 0.5, W * 0.88, H * 0.27]} labels={labels} vertical /></>
+        <Years seg={tseg} t0={t0} area={[W * LAYOUT.years_v[0], H * LAYOUT.years_v[1], W * LAYOUT.years_v[2], H * LAYOUT.years_v[3]]} labels={labels} vertical /></>
     ) : (
       <><AbsoluteFill style={{background: `linear-gradient(90deg, #15120d, ${INK})`}} />
         {panel(0, 0, W * 0.5, H, 'zoom')}
-        <Years seg={tseg} t0={t0} area={[W * 0.54, H * 0.08, W * 0.42, H * 0.64]} labels={labels} vertical={false} /></>
+        <Years seg={tseg} t0={t0} area={[W * LAYOUT.years_h[0], H * LAYOUT.years_h[1], W * LAYOUT.years_h[2], H * LAYOUT.years_h[3]]} labels={labels} vertical={false} /></>
     );
   } else if (fx === 'pipeline-map') {
     body = vertical ? (
@@ -539,9 +546,13 @@ export const Video: React.FC<Props> = (props) => {
         const from = starts[i];
         const to = i < segs.length - 1 ? starts[i + 1] + XF : durationInFrames;
         const useVideo = insert && i === 0 ? 'insert.mp4' : undefined;
+        // r265: тот же снимок, что в прошлой сцене (другая обрезка) — прямая склейка: растворение двоит кадр (08 янв.: две трубы, «призрак»)
+        const src = (k?: string | null) => (k ? ((cfg as any).images?.[k]?.src ?? k) : null);
+        const prev = i > 0 ? cfg.segments[i - 1] : null;
+        const cut = !!prev && !useVideo && src(seg.image) !== null && src(seg.image) === src(prev.image);
         return (
           <Sequence key={seg.id} from={from} durationInFrames={to - from}>
-            <Scene props={props} seg={seg} tseg={segs[i]} t0={from / fps} dur={to - from} vertical={vertical} first={i === 0} videoBg={useVideo} />
+            <Scene props={props} seg={seg} tseg={segs[i]} t0={from / fps} dur={to - from} vertical={vertical} first={i === 0} cut={cut} videoBg={useVideo} />
           </Sequence>
         );
       })}
