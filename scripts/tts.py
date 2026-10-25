@@ -1,5 +1,5 @@
 """Озвучка дня: days/<id>.json -> public/days/<id>/voice.mp3 + words.json (слова с таймингами)."""
-import asyncio, json, sys, re, subprocess, pathlib
+import asyncio, json, sys, re, subprocess, pathlib, random, time
 import edge_tts
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
@@ -38,11 +38,14 @@ def main(day):
     segs, parts = [], []
     for i, s in enumerate(cfg["segments"]):
         mp3 = out / f"seg{i}.mp3"
-        for k in range(6):  # сервис голоса иногда рвёт связь — повтор
+        for k in range(6):  # сервис голоса иногда рвёт связь — повтор с растущей паузой 3, 6, 12, 24, 48 с (r260)
             try:
                 words = asyncio.run(synth(udar(s["say"]), cfg["voice"], cfg["rate"], mp3)); break
-            except Exception:
+            except Exception as e:
                 if k == 5: raise
+                p = 3 * 2 ** k + random.uniform(0, 3)
+                print(f"  {s['id']}: попытка {k + 1} из 6 — {type(e).__name__}, жду {p:.0f} с", flush=True)
+                time.sleep(p)
         d = dur(mp3)
         # подписи: если задан "show" — показываем его слова, разложив по времени озвученных слов
         show = s.get("show")
