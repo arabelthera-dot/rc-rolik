@@ -1,10 +1,11 @@
 """Озвучка дня: days/<id>.json -> public/days/<id>/voice.mp3 + words.json (слова с таймингами)."""
-import asyncio, json, sys, re, subprocess, pathlib, random, time
+import asyncio, json, sys, re, subprocess, pathlib, random, time, hashlib
 import edge_tts
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 GAP = 0.35  # пауза между сегментами, с
 LEAD = 0.15  # голос стартует почти сразу — хук в 1-й секунде
+TRIES = 10  # служба голоса отказывает волнами по несколько минут — окно повторов ≈5,5 мин на сцену (r264)
 
 async def synth(text, voice, rate, mp3):
     com = edge_tts.Communicate(text, voice, rate=rate, boundary="WordBoundary")
@@ -37,15 +38,24 @@ def main(day):
     t = LEAD
     segs, parts = [], []
     for i, s in enumerate(cfg["segments"]):
-        mp3 = out / f"seg{i}.mp3"
-        for k in range(6):  # сервис голоса иногда рвёт связь — повтор с растущей паузой 3, 6, 12, 24, 48 с (r260)
-            try:
-                words = asyncio.run(synth(udar(s["say"]), cfg["voice"], cfg["rate"], mp3)); break
-            except Exception as e:
-                if k == 5: raise
-                p = 3 * 2 ** k + random.uniform(0, 3)
-                print(f"  {s['id']}: попытка {k + 1} из 6 — {type(e).__name__}, жду {p:.0f} с", flush=True)
-                time.sleep(p)
+        mp3, meta = out / f"seg{i}.mp3", out / f"seg{i}.json"
+        text = udar(s["say"])
+        key = hashlib.sha1(json.dumps([text, cfg["voice"], cfg["rate"]], ensure_ascii=False).encode()).hexdigest()
+        old = json.loads(meta.read_text()) if meta.exists() else {}
+        if mp3.exists() and old.get("key") == key:  # сцена уже озвучена тем же текстом — при перезапуске не переозвучиваем (r264)
+            words = old["words"]
+            print(f"  {s['id']}: готова, не переозвучиваю", flush=True)
+        else:
+            meta.unlink(missing_ok=True)
+            for k in range(TRIES):  # повтор с растущей паузой 3, 6, 12, 24, 48, 60… с (r260, r264)
+                try:
+                    words = asyncio.run(synth(text, cfg["voice"], cfg["rate"], mp3)); break
+                except Exception as e:
+                    if k == TRIES - 1: raise
+                    p = min(3 * 2 ** k, 60) + random.uniform(0, 3)
+                    print(f"  {s['id']}: попытка {k + 1} из {TRIES} — {type(e).__name__}, жду {p:.0f} с", flush=True)
+                    time.sleep(p)
+            meta.write_text(json.dumps({"key": key, "words": words}, ensure_ascii=False))
         d = dur(mp3)
         # подписи: если задан "show" — показываем его слова, разложив по времени озвученных слов
         show = s.get("show")
