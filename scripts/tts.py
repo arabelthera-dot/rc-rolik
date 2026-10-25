@@ -60,7 +60,7 @@ def main(day):
         # подписи: если задан "show" — показываем его слова, разложив по времени озвученных слов
         show = s.get("show")
         if show:
-            sw = show.split()
+            sw = re.split(r"[ \t\n]+", show.strip())  # неразрывный пробел (U+00A0) склеивает слова в подписи: «№ 17», «а в»
             a, b = words[0]["t"], words[-1]["t"] + words[-1]["d"]
             n = len(sw)
             words = [{"t": a + (b - a) * k / n, "d": (b - a) / n, "w": w} for k, w in enumerate(sw)]
