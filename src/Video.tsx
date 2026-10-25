@@ -273,7 +273,7 @@ const Altitude: React.FC<{W: number; H: number; seg: TSeg; t0: number; area: [nu
 // квадрат пластинки с подписью размера, появляется на слове key.
 // Рамка — только с содержимым (r254): labels.image — кадр дня внутри рамки, labels.steklo — рамка сама изображает
 // стеклянную пластинку (26jan). Без содержимого пустой рамки нет — только надпись крупно (проверка — scripts/check.mjs).
-const PlateFrame: React.FC<{W: number; H: number; seg: TSeg; t0: number; cx: number; cy: number; side: number; labels: any; day: string}> = ({W, H, seg, t0, cx, cy, side, labels, day}) => {
+const PlateFrame: React.FC<{W: number; H: number; seg: TSeg; t0: number; cx: number; cy: number; side: number; labels: any; day: string; shade?: boolean}> = ({W, H, seg, t0, cx, cy, side, labels, day, shade}) => {
   const f = useCurrentFrame();
   const {fps} = useVideoConfig();
   const tk = wordTime(seg, labels.key, seg.start + 4);
@@ -284,10 +284,13 @@ const PlateFrame: React.FC<{W: number; H: number; seg: TSeg; t0: number; cx: num
     const fs = Math.max(side * 0.3, 64);
     const uw = Math.min(W * 0.4, side * 1.4);
     return (
+      <>
+      {shade && <AbsoluteFill style={{opacity: k, background: 'linear-gradient(90deg, rgba(0,0,0,.62) 0%, rgba(0,0,0,.45) 40%, rgba(0,0,0,0) 70%)'}} />}
       <svg width={W} height={H} style={{position: 'absolute', inset: 0}}>
         <text x={cx} y={cy + fs * 0.35} textAnchor="middle" opacity={k} style={{fontFamily: 'Inter', fontWeight: 800, fontSize: fs, fill: AMBER}}>{labels.text}</text>
         <line x1={cx - uw / 2} y1={cy + fs * 0.75} x2={cx - uw / 2 + uw * k} y2={cy + fs * 0.75} stroke={AMBER} strokeWidth={4} strokeLinecap="round" opacity={0.8} />
       </svg>
+      </>
     );
   }
   return (
@@ -465,6 +468,10 @@ const Scene: React.FC<{props: Props; seg: DaySeg; tseg: TSeg; t0: number; dur: n
     body = vertical ? (
       <>{blurBg}{panel(W * 0.08, H * 0.07, W * 0.84, H * 0.47, 'zoom')}
         <PlateFrame W={W} H={H} seg={tseg} t0={t0} cx={W * 0.5} cy={H * 0.64} side={H * 0.12} labels={labels} day={day} /></>
+    ) : !labels.image && !labels.steklo ? (
+      // без рамки (r256): фото на весь кадр с начала сцены, надпись крупно слева на слове key, под ней — затемнение
+      <>{panel(0, 0, W, H, 'zoom')}
+        <PlateFrame W={W} H={H} seg={tseg} t0={t0} cx={W * 0.25} cy={H * 0.36} side={H * 0.36} labels={labels} day={day} shade /></>
     ) : (
       <><AbsoluteFill style={{background: `linear-gradient(90deg, ${INK}, #15120d)`}} />
         {panel(W * 0.5, 0, W * 0.5, H, 'zoom')}
