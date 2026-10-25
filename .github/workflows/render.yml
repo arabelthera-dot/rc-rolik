@@ -56,6 +56,7 @@ jobs:
     timeout-minutes: 20
     strategy:
       fail-fast: false
+      max-parallel: 3  # служба голоса не любит разом много заданий (r260)
       matrix:
         day: ${{ fromJson(needs.plan.outputs.days) }}
     name: ozvuchka-${{ matrix.day }}
