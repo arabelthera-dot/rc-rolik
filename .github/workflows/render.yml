@@ -65,13 +65,14 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-      # apt на машине GitHub иногда виснет на 20–36 мин и съедает таймаут задачи (r277, r283): 4 мин на попытку, 3 попытки
+      # apt на машине GitHub иногда виснет на 20–36 мин и съедает таймаут задачи (r277, r283): 3 мин на apt, иначе сборка с GitHub
       - run: |
-          for i in 1 2 3; do
-            sudo timeout 240 sh -c 'dpkg --configure -a; apt-get update -qq && apt-get install -y -qq ffmpeg' && break
-            echo "apt: попытка $i не удалась (завис или упал), повтор"
-          done
-          command -v ffmpeg
+          if ! sudo timeout 180 sh -c 'apt-get update -qq && apt-get install -y -qq ffmpeg'; then
+            echo "apt завис или упал — беру сборку ffmpeg с GitHub (BtbN/FFmpeg-Builds)"
+            curl -fsSL --retry 3 -o /tmp/ff.tar.xz https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-linux64-gpl.tar.xz
+            sudo tar -xJf /tmp/ff.tar.xz -C /opt && sudo ln -sf /opt/ffmpeg-master-latest-linux64-gpl/bin/ffmpeg /opt/ffmpeg-master-latest-linux64-gpl/bin/ffprobe /usr/local/bin/
+          fi
+          ffmpeg -version | head -1
       - run: pip install -q edge-tts==7.3.1 numpy==2.4.6 scipy==1.17.1
       # озвученные сцены (seg*.mp3 + seg*.json с ключом текста) переживают перезапуск: tts.py их не переозвучивает (r264)
       - uses: actions/cache/restore@v4
@@ -152,13 +153,14 @@ jobs:
         with:
           node-version: 22
           cache: npm
-      # apt на машине GitHub иногда виснет на 20–36 мин и съедает таймаут задачи (r277, r283): 4 мин на попытку, 3 попытки
+      # apt на машине GitHub иногда виснет на 20–36 мин и съедает таймаут задачи (r277, r283): 3 мин на apt, иначе сборка с GitHub
       - run: |
-          for i in 1 2 3; do
-            sudo timeout 240 sh -c 'dpkg --configure -a; apt-get update -qq && apt-get install -y -qq ffmpeg' && break
-            echo "apt: попытка $i не удалась (завис или упал), повтор"
-          done
-          command -v ffmpeg
+          if ! sudo timeout 180 sh -c 'apt-get update -qq && apt-get install -y -qq ffmpeg'; then
+            echo "apt завис или упал — беру сборку ffmpeg с GitHub (BtbN/FFmpeg-Builds)"
+            curl -fsSL --retry 3 -o /tmp/ff.tar.xz https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-linux64-gpl.tar.xz
+            sudo tar -xJf /tmp/ff.tar.xz -C /opt && sudo ln -sf /opt/ffmpeg-master-latest-linux64-gpl/bin/ffmpeg /opt/ffmpeg-master-latest-linux64-gpl/bin/ffprobe /usr/local/bin/
+          fi
+          ffmpeg -version | head -1
       - run: npm ci
       - run: node scripts/render.mjs "${{ matrix.day }}" "${{ matrix.v }}" "${{ matrix.f }}"
       - uses: actions/upload-artifact@v4
