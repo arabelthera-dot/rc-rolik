@@ -7,7 +7,7 @@ export type DayCfg = {
   segments: DaySeg[];
   insert_b?: {file: string; label: string; seconds: number};
 };
-export type ImgMeta = Record<string, {w: number; h: number; fg: boolean; label?: string | null}>;
+export type ImgMeta = Record<string, {w: number; h: number; fg: boolean; label?: string | null; contain_v?: boolean}>;
 export type Props = {
   day: string;
   variant: 'A' | 'B';

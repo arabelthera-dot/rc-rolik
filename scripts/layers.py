@@ -30,6 +30,8 @@ def main(day):
         h, w = img.shape[:2]
         cv2.imwrite(str(out / f"{key}-bg.jpg"), img, [cv2.IMWRITE_JPEG_QUALITY, 90])
         meta[key] = {"w": w, "h": h, "fg": False, "label": im.get("label")}
+        if im.get("contain_v"):  # 9:16: кадр вписан целиком, без панорамы (подписи схемы/игры не срезаются)
+            meta[key]["contain_v"] = True
         if im.get("parallax") is False:  # кадр без переднего плана — нет шва полосы (напр. караван)
             continue
         if im.get("band"):  # пейзаж: передний план — нижняя полоса кадра (земля, люди, повозки)
