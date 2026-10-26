@@ -35,16 +35,16 @@ const wordTime = (seg: TSeg, key: string, fallback = 0) => {
 
 // ---------- 2.5D: фон + передний план с разной скоростью ----------
 const Layered: React.FC<{
-  day: string; k: string; meta: ImgMeta; W: number; H: number; p: number; mode: 'zoom' | 'pan'; dim?: number; video?: string;
+  day: string; k: string; meta: ImgMeta; W: number; H: number; p: number; mode: 'zoom' | 'pan' | 'contain'; dim?: number; video?: string;
 }> = ({day, k, meta, W, H, p, mode, dim = 0, video}) => {
   const m = meta[k] || {w: 1920, h: 1080, fg: false};
-  const cover = Math.max(W / m.w, H / m.h);
+  const cover = mode === 'contain' ? Math.min(W / m.w, H / m.h) : Math.max(W / m.w, H / m.h);
   const e = ease(p);
-  const sBg = cover * (mode === 'zoom' ? 1.06 + 0.10 * e : 1.04 + 0.03 * e);
+  const sBg = cover * (mode === 'contain' ? 1 + 0.04 * e : mode === 'zoom' ? 1.06 + 0.10 * e : 1.04 + 0.03 * e);
   const sFg = cover * (mode === 'zoom' ? 1.06 + 0.13 * e : 1.04 + 0.06 * e);
   const spanBg = Math.max(0, m.w * sBg - W) / 2;
   const spanFg = Math.max(0, m.w * sFg - W) / 2;
-  const dxBg = mode === 'pan' ? interpolate(e, [0, 1], [spanBg * 0.85, -spanBg * 0.85]) : -18 * e;
+  const dxBg = mode === 'pan' ? interpolate(e, [0, 1], [spanBg * 0.85, -spanBg * 0.85]) : mode === 'contain' ? 0 : -18 * e;
   const dxFg = mode === 'pan' ? interpolate(e, [0, 1], [spanFg * 0.95, -spanFg * 0.95]) : -36 * e;
   const box = (s: number, dx: number, dy: number): React.CSSProperties => ({
     position: 'absolute', width: m.w * s, height: m.h * s,
@@ -60,7 +60,7 @@ const Layered: React.FC<{
   }
   return (
     <div style={{position: 'absolute', inset: 0, overflow: 'hidden'}}>
-      <Img src={staticFile(`days/${day}/${k}-bg.jpg`)} style={box(sBg, dxBg, 6 * e)} />
+      <Img src={staticFile(`days/${day}/${k}-bg.jpg`)} style={box(sBg, dxBg, mode === 'contain' ? 0 : 6 * e)} />
       {m.fg && <Img src={staticFile(`days/${day}/${k}-fg.png`)} style={box(sFg, dxFg, -10 * e)} />}
       <AbsoluteFill style={{background: `rgba(0,0,0,${dim})`}} />
     </div>
@@ -417,7 +417,7 @@ const Scene: React.FC<{props: Props; seg: DaySeg; tseg: TSeg; t0: number; dur: n
   const labels: any = (seg as any).labels || {};
   let body: React.ReactNode;
 
-  const panel = (x: number, y: number, w: number, h: number, mode: 'zoom' | 'pan', dim = 0) => (
+  const panel = (x: number, y: number, w: number, h: number, mode: 'zoom' | 'pan' | 'contain', dim = 0) => (
     <div style={{position: 'absolute', left: x, top: y, width: w, height: h, overflow: 'hidden', borderRadius: vertical ? 0 : 0}}>
       <Layered day={day} k={k} meta={meta} W={w} H={h} p={p} mode={mode} dim={dim} video={videoBg} />
       {!videoBg && <ImgLabel text={meta[k]?.label} vertical={vertical} />}
@@ -507,7 +507,7 @@ const Scene: React.FC<{props: Props; seg: DaySeg; tseg: TSeg; t0: number; dur: n
     // фото на весь кадр (16:9) / фото-панель + размытый фон (9:16)
     const hook = fx === 'pipe-sweep';
     body = vertical ? (
-      <>{blurBg}{panel(0, H * 0.1, W, H * 0.58, 'pan')}
+      <>{blurBg}{panel(0, H * 0.1, W, H * 0.58, meta[k]?.contain_v ? 'contain' : 'pan')}
         <Particles kind={hook ? 'smoke' : 'dust'} n={hook ? 7 : 50} W={W} H={H * 0.7} seed={seg.id} />
         {hook && <PipeSweep W={W} H={H} y={H * 0.72} />}</>
     ) : (

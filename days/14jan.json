@@ -158,6 +158,7 @@
    "src": "kadry/14jan/01-14-igra-perehvat.jpg",
    "parallax": false,
    "label": "Игра «Перехват» со страницы дня — модель, а не карта похода",
+   "contain_v": true,
    "crop": [
     0.38,
     0.0,
