@@ -67,13 +67,6 @@
    "fx": "photo"
   },
   {
-   "id": "nobel",
-   "say": "Нобелевскую премию Канторович получил в тысяча девятьсот семьдесят пятом году.",
-   "show": "Нобелевскую премию Канторович получил в 1975 году.",
-   "image": "diplom",
-   "fx": "photo"
-  },
-  {
    "id": "cta",
    "say": "Смотри день целиком на сайте рашн-цивилизейшн точка ру.",
    "show": "Смотри день целиком на russian-civilization.ru",
@@ -96,12 +89,6 @@
     0.71,
     0.66
    ]
-  },
-  "diplom": {
-   "src": "kadry/19jan/day-19jan-kantorovich-diplom.jpg",
-   "parallax": false,
-   "contain_v": true,
-   "label": "Нобелевский диплом Канторовича, 1975. Музей истории СПбГУ"
   },
   "matrikul": {
    "src": "kadry/19jan/day-19jan-kantorovich-matrikul.jpg",
