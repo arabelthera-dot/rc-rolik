@@ -105,10 +105,10 @@
   "vihri": {
    "src": "kadry/17jan/01-17-vihri-goskatalog-47120680.jpg",
    "crop": [
-    0.0,
-    0.42,
-    1.0,
-    0.88
+    0.05,
+    0.56,
+    0.95,
+    0.92
    ],
    "parallax": false,
    "contain_v": true,
@@ -130,9 +130,9 @@
    "src": "kadry/17jan/01-17-cagi-goskatalog-5992214.jpg",
    "crop": [
     0.0,
-    0.12,
+    0.05,
     1.0,
-    0.72
+    0.65
    ],
    "parallax": false,
    "contain_v": true,
