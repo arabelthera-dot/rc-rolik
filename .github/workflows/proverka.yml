@@ -1,0 +1,41 @@
+# Лёгкая проверка заявок (r397, 28.10.2026): без рендера, без озвучки, без секретов — секунды на машине GitHub.
+# Нужна, чтобы слияние шло по правилу «все проверки зелёные». Проверяет:
+# - workflows — actionlint (бинарник закреплён по sha256 выпуска v1.7.12);
+# - scripts/*.py — python -m py_compile;
+# - все *.json — разбор python json, все *.yml/*.yaml — разбор yq.
+name: proverka
+on:
+  pull_request:
+  push:
+    branches: [main]
+permissions:
+  contents: read
+concurrency:
+  group: proverka-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  proverka:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - name: actionlint
+        env:
+          VER: 1.7.12
+          SHA: 8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8
+        run: |
+          f="actionlint_${VER}_linux_amd64.tar.gz"
+          curl -fsSL -o "/tmp/$f" "https://github.com/rhysd/actionlint/releases/download/v${VER}/$f"
+          echo "$SHA  /tmp/$f" | sha256sum -c -
+          tar -xzf "/tmp/$f" -C /tmp actionlint
+          /tmp/actionlint -color
+      - name: python -m py_compile scripts/*.py
+        run: python3 -m py_compile scripts/*.py
+      - name: JSON
+        run: |
+          git ls-files -z '*.json' | xargs -0 -r -n1 sh -c 'python3 -m json.tool "$0" >/dev/null || { echo "::error file=$0::битый JSON"; exit 1; }'
+      - name: YAML
+        run: |
+          git ls-files -z '*.yml' '*.yaml' | xargs -0 -r -n1 sh -c 'yq "." "$0" >/dev/null || { echo "::error file=$0::битый YAML"; exit 1; }'
