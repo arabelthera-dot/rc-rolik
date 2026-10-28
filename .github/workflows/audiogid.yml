@@ -1,0 +1,64 @@
+# Озвучка аудиогида отдельно от роликов (r310, 28.10.2026): локально edge-tts отдаёт NoAudioReceived,
+# в облаке работает. Голос, ударения (udareniya.json) и повторы — из scripts/tts.py, render.yml не трогается.
+# Только ручной запуск. Выход — артефакт audiogid-<день>: <день>.mp3, <день>.json (длительности абзацев), p*.mp3.
+# Текст из этого репо:   gh workflow run audiogid.yml -f put=audiogid/01-20.yaml
+# Текст со страницы сайта: gh workflow run audiogid.yml -f vetka_sajta=main -f put=src/content/dni-shablon/izobreteniya/01-17.yaml
+name: audiogid
+on:
+  workflow_dispatch:
+    inputs:
+      put:
+        description: "путь к yaml с transcript (в этом репо или, если задана ветка сайта, в rc-site)"
+        required: true
+      vetka_sajta:
+        description: "ветка rc-site, откуда взять yaml (пусто — файл из этого репо)"
+        default: ""
+      golos:
+        description: "голос edge-tts"
+        default: "ru-RU-DmitryNeural"
+      temp:
+        description: "скорость edge-tts"
+        default: "+18%"
+jobs:
+  audiogid:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45  # до 10 попыток по ≈5,5 мин на абзац, как в render.yml (r264)
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      # apt иногда виснет (r277, r283): 3 мин на apt, иначе сборка ffmpeg с GitHub — как в render.yml
+      - run: |
+          if ! sudo timeout 180 sh -c 'apt-get update -qq && apt-get install -y -qq ffmpeg'; then
+            echo "apt завис или упал — беру сборку ffmpeg с GitHub (BtbN/FFmpeg-Builds)"
+            curl -fsSL --retry 3 -o /tmp/ff.tar.xz https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-linux64-gpl.tar.xz
+            sudo tar -xJf /tmp/ff.tar.xz -C /opt && sudo ln -sf /opt/ffmpeg-master-latest-linux64-gpl/bin/ffmpeg /opt/ffmpeg-master-latest-linux64-gpl/bin/ffprobe /usr/local/bin/
+          fi
+          ffmpeg -version | head -1
+      - run: pip install -q edge-tts==7.3.1 pyyaml==6.0.2
+      - id: vhod
+        env:
+          PUT: ${{ inputs.put }}
+          VETKA: ${{ inputs.vetka_sajta }}
+        run: |
+          if [ -n "$VETKA" ]; then
+            curl -fsSL --retry 3 -o /tmp/vhod.yaml "https://raw.githubusercontent.com/arabelthera-dot/rc-site/$VETKA/$PUT"
+            echo "f=/tmp/vhod.yaml" >> "$GITHUB_OUTPUT"
+          else
+            test -f "$PUT"
+            echo "f=$PUT" >> "$GITHUB_OUTPUT"
+          fi
+      - id: ozv
+        env:
+          F: ${{ steps.vhod.outputs.f }}
+          GOLOS: ${{ inputs.golos }}
+          TEMP: ${{ inputs.temp }}
+        run: |
+          python scripts/audiogid.py "$F" "$GOLOS" "$TEMP" out/audiogid
+          echo "den=$(ls out/audiogid/*.json | head -1 | xargs basename | sed 's/\.json$//')" >> "$GITHUB_OUTPUT"
+          python -c "import json,glob;d=json.load(open(glob.glob('out/audiogid/*.json')[0]));print('## Аудиогид',d['den'],'—',d['total'],'с');[print('-',a['i'],a['start'],'+',a['dur'],'с, слов',a['slov_golos'],'/',a['slov_tekst']) for a in d['abzacy']]" >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: audiogid-${{ steps.ozv.outputs.den }}
+          path: out/audiogid/
