@@ -41,9 +41,9 @@
    "src": "kadry/29jan/day-29jan-kostovich-portret-gk.jpg",
    "crop": [
     0,
-    0,
+    0.03,
     1,
-    0.75
+    0.47
    ],
    "parallax": false,
    "label": "О. С. Костович · Госкаталог"
