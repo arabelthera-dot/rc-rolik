@@ -21,10 +21,13 @@ on:
       temp:
         description: "скорость edge-tts"
         default: "+18%"
+concurrency:
+  group: audiogid  # служба голоса не любит разом много заданий (r260) — прогоны по одному
+  cancel-in-progress: false
 jobs:
   audiogid:
     runs-on: ubuntu-latest
-    timeout-minutes: 45  # до 10 попыток по ≈5,5 мин на абзац, как в render.yml (r264)
+    timeout-minutes: 60  # до 10 попыток на абзац (с 4-й — по фразам), как в render.yml (r264)
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -52,16 +55,17 @@ jobs:
             test -f "$PUT"
             echo "f=$PUT" >> "$GITHUB_OUTPUT"
           fi
+          echo "den=$(basename "$PUT" .yaml)" >> "$GITHUB_OUTPUT"
       - id: ozv
         env:
           F: ${{ steps.vhod.outputs.f }}
+          DEN: ${{ steps.vhod.outputs.den }}
           GOLOS: ${{ inputs.golos || 'ru-RU-DmitryNeural' }}
           TEMP: ${{ inputs.temp || '+18%' }}
         run: |
-          python scripts/audiogid.py "$F" "$GOLOS" "$TEMP" out/audiogid
-          echo "den=$(ls out/audiogid/*.json | head -1 | xargs basename | sed 's/\.json$//')" >> "$GITHUB_OUTPUT"
+          python scripts/audiogid.py "$F" "$GOLOS" "$TEMP" out/audiogid "$DEN"
           python -c "import json,glob;d=json.load(open(glob.glob('out/audiogid/*.json')[0]));print('## Аудиогид',d['den'],'—',d['total'],'с');[print('-',a['i'],a['start'],'+',a['dur'],'с, слов',a['slov_golos'],'/',a['slov_tekst']) for a in d['abzacy']]" >> "$GITHUB_STEP_SUMMARY"
       - uses: actions/upload-artifact@v4
         with:
-          name: audiogid-${{ steps.ozv.outputs.den }}
+          name: audiogid-${{ steps.vhod.outputs.den }}
           path: out/audiogid/

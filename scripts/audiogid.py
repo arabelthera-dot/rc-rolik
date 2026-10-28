@@ -15,15 +15,39 @@ def abzacy(path):
     den = str(d.get("den") or d.get("date") or pathlib.Path(path).stem)
     return den, [html.unescape(re.sub(r"<[^>]+>", "", p)).strip().strip("«»").strip() for p in tr]
 
-def main(path, voice, rate, outdir):
-    den, txt = abzacy(path)
+def po_frazam(text, voice, rate, mp3):
+    """Запасной путь: абзац по предложениям и склейка — короткие запросы служба отклоняет реже."""
+    fr = [f for f in re.split(r"(?<=[.!?…])\s+", text) if f.strip()]
+    words, parts, t = [], [], 0.0
+    for j, f in enumerate(fr):
+        pj = mp3.with_name(f"{mp3.stem}-f{j}.mp3")
+        for k in range(TRIES):
+            try:
+                w = asyncio.run(synth(f, voice, rate, pj))
+                if not w: raise RuntimeError("пустой ответ")
+                break
+            except Exception as e:
+                if k == TRIES - 1: raise
+                p = min(3 * 2 ** k, 60) + random.uniform(0, 3)
+                print(f"    фраза {j}: попытка {k + 1} из {TRIES} — {type(e).__name__}, жду {p:.0f} с", flush=True)
+                time.sleep(p)
+        words += [{**x, "t": x["t"] + t} for x in w]; parts.append(pj); t += dur(pj)
+    lst = mp3.with_suffix(".txt")
+    lst.write_text("".join(f"file '{q.name}'\n" for q in parts))
+    subprocess.check_call(["ffmpeg", "-y", "-v", "error", "-f", "concat", "-safe", "0", "-i", str(lst), "-c", "copy", str(mp3)])
+    lst.unlink(); [q.unlink() for q in parts]
+    return words
+
+def main(path, voice, rate, outdir, den=""):
+    den0, txt = abzacy(path)
+    den = den or den0
     out = pathlib.Path(outdir); out.mkdir(parents=True, exist_ok=True)
     parts, segs, t = [], [], 0.0
     for i, s in enumerate(txt):
         mp3 = out / f"{den}-p{i}.mp3"
-        for k in range(TRIES):  # повтор с растущей паузой, как в tts.py (r260, r264)
+        for k in range(TRIES):  # повтор с растущей паузой, как в tts.py (r260, r264); с 4-й попытки — по фразам
             try:
-                words = asyncio.run(synth(udar(s), voice, rate, mp3))
+                words = asyncio.run(synth(udar(s), voice, rate, mp3)) if k < 3 else po_frazam(udar(s), voice, rate, mp3)
                 if not words or mp3.stat().st_size < 1000: raise RuntimeError("пустой ответ")
                 break
             except Exception as e:
@@ -52,4 +76,4 @@ def main(path, voice, rate, outdir):
         sys.exit(f"абзацы озвучены не полностью: {plohie}")
 
 if __name__ == "__main__":
-    main(*sys.argv[1:5])
+    main(*sys.argv[1:6])
