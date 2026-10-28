@@ -23,7 +23,7 @@
    "image": "molodoy",
    "fx": "plate",
    "labels": {
-    "text": "плотность · скорость · направление",
+    "text": "поток энергии",
     "key": "плотность",
     "image": "portret"
    },
