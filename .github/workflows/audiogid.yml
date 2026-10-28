@@ -5,6 +5,8 @@
 # Текст со страницы сайта: gh workflow run audiogid.yml -f vetka_sajta=main -f put=src/content/dni-shablon/izobreteniya/01-17.yaml
 name: audiogid
 on:
+  push:  # ВРЕМЕННО для пробы на ветке (r310), убрать до слияния
+    branches: [r310-audiogid]
   workflow_dispatch:
     inputs:
       put:
@@ -42,6 +44,7 @@ jobs:
           PUT: ${{ inputs.put }}
           VETKA: ${{ inputs.vetka_sajta }}
         run: |
+          [ -z "$PUT" ] && [ -f .proba ] && . ./.proba  # ВРЕМЕННО (r310)
           if [ -n "$VETKA" ]; then
             curl -fsSL --retry 3 -o /tmp/vhod.yaml "https://raw.githubusercontent.com/arabelthera-dot/rc-site/$VETKA/$PUT"
             echo "f=/tmp/vhod.yaml" >> "$GITHUB_OUTPUT"
@@ -52,8 +55,8 @@ jobs:
       - id: ozv
         env:
           F: ${{ steps.vhod.outputs.f }}
-          GOLOS: ${{ inputs.golos }}
-          TEMP: ${{ inputs.temp }}
+          GOLOS: ${{ inputs.golos || 'ru-RU-DmitryNeural' }}
+          TEMP: ${{ inputs.temp || '+18%' }}
         run: |
           python scripts/audiogid.py "$F" "$GOLOS" "$TEMP" out/audiogid
           echo "den=$(ls out/audiogid/*.json | head -1 | xargs basename | sed 's/\.json$//')" >> "$GITHUB_OUTPUT"
