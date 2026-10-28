@@ -1,5 +1,5 @@
 """Озвучка аудиогида (r310): transcript-yaml -> out/audiogid/<den>.mp3 + <den>.json (длительности абзацев).
-Голос, ударения и повторы — те же, что у роликов (scripts/tts.py, udareniya.json).
+Голос, ударения и повторы — те же, что у роликов (scripts/tts.py, udareniya.json). Абзацы озвучиваются по одному на машину.
 Вход: yaml дня сайта (audioguide.transcript) или отдельный yaml с верхним transcript; абзацы — строки с <p>…</p>."""
 import asyncio, json, sys, re, subprocess, pathlib, random, time, html
 import yaml
@@ -15,52 +15,39 @@ def abzacy(path):
     den = str(d.get("den") or d.get("date") or pathlib.Path(path).stem)
     return den, [html.unescape(re.sub(r"<[^>]+>", "", p)).strip().strip("«»").strip() for p in tr]
 
-def po_frazam(text, voice, rate, mp3):
-    """Запасной путь: абзац по предложениям и склейка — короткие запросы служба отклоняет реже."""
-    fr = [f for f in re.split(r"(?<=[.!?…])\s+", text) if f.strip()]
-    words, parts, t = [], [], 0.0
-    for j, f in enumerate(fr):
-        pj = mp3.with_name(f"{mp3.stem}-f{j}.mp3")
-        for k in range(TRIES):
-            try:
-                w = asyncio.run(synth(f, voice, rate, pj))
-                if not w: raise RuntimeError("пустой ответ")
-                break
-            except Exception as e:
-                if k == TRIES - 1: raise
-                p = min(3 * 2 ** k, 60) + random.uniform(0, 3)
-                print(f"    фраза {j}: попытка {k + 1} из {TRIES} — {type(e).__name__}, жду {p:.0f} с", flush=True)
-                time.sleep(p)
-        words += [{**x, "t": x["t"] + t} for x in w]; parts.append(pj); t += dur(pj)
-    lst = mp3.with_suffix(".txt")
-    lst.write_text("".join(f"file '{q.name}'\n" for q in parts))
-    subprocess.check_call(["ffmpeg", "-y", "-v", "error", "-f", "concat", "-safe", "0", "-i", str(lst), "-c", "copy", str(mp3)])
-    lst.unlink(); [q.unlink() for q in parts]
-    return words
+def abzac(path, i, voice, rate, outdir):
+    """Один абзац -> p<i>.mp3 + p<i>.json. Каждый абзац — на своей машине (matrix в audiogid.yml):
+    служба душит одну машину после ~минуты звука подряд, ролики (~55 с) проходят, весь аудиогид — нет (r310)."""
+    _, txt = abzacy(path)
+    i = int(i); s = txt[i]
+    out = pathlib.Path(outdir); out.mkdir(parents=True, exist_ok=True)
+    mp3 = out / f"p{i}.mp3"
+    for k in range(TRIES):  # повтор с растущей паузой, как в tts.py (r260, r264)
+        try:
+            words = asyncio.run(synth(udar(s), voice, rate, mp3))
+            if not words or mp3.stat().st_size < 1000: raise RuntimeError("пустой ответ")
+            break
+        except Exception as e:
+            if k == TRIES - 1: raise
+            p = min(3 * 2 ** k, 60) + random.uniform(0, 3)
+            print(f"  абзац {i}: попытка {k + 1} из {TRIES} — {type(e).__name__}, жду {p:.0f} с", flush=True)
+            time.sleep(p)
+    # все ли фразы озвучены: число слов от службы против слов в тексте
+    src = len([w for w in s.split() if re.search(r"\w", w)])
+    d = dur(mp3)
+    (out / f"p{i}.json").write_text(json.dumps({"i": i, "dur": round(d, 2), "slov_tekst": src, "slov_golos": len(words)}))
+    print(f"  абзац {i}: {d:5.1f} с, слов {len(words)}/{src}", flush=True)
 
-def main(path, voice, rate, outdir, den=""):
+def skleika(path, voice, rate, outdir, den=""):
+    """p*.mp3 всех абзацев -> <den>.mp3 + <den>.json (начало и длительность абзацев)."""
     den0, txt = abzacy(path)
     den = den or den0
-    out = pathlib.Path(outdir); out.mkdir(parents=True, exist_ok=True)
+    out = pathlib.Path(outdir)
     parts, segs, t = [], [], 0.0
-    for i, s in enumerate(txt):
-        mp3 = out / f"{den}-p{i}.mp3"
-        for k in range(TRIES):  # повтор с растущей паузой, как в tts.py (r260, r264); с 4-й попытки — по фразам
-            try:
-                words = asyncio.run(synth(udar(s), voice, rate, mp3)) if k < 3 else po_frazam(udar(s), voice, rate, mp3)
-                if not words or mp3.stat().st_size < 1000: raise RuntimeError("пустой ответ")
-                break
-            except Exception as e:
-                if k == TRIES - 1: raise
-                p = min(3 * 2 ** k, 60) + random.uniform(0, 3)
-                print(f"  абзац {i}: попытка {k + 1} из {TRIES} — {type(e).__name__}, жду {p:.0f} с", flush=True)
-                time.sleep(p)
-        # все ли фразы озвучены: число слов от службы против слов в тексте
-        src = len([w for w in s.split() if re.search(r"\w", w)])
-        d = dur(mp3)
-        segs.append({"i": i, "start": round(t, 2), "dur": round(d, 2), "slov_tekst": src, "slov_golos": len(words)})
-        print(f"  абзац {i}: {t:6.1f} +{d:5.1f} с, слов {len(words)}/{src}", flush=True)
-        parts.append(mp3); t += d + GAP
+    for i in range(len(txt)):
+        m = json.loads((out / f"p{i}.json").read_text())
+        segs.append({"i": i, "start": round(t, 2), **{k: m[k] for k in ("dur", "slov_tekst", "slov_golos")}})
+        parts.append(out / f"p{i}.mp3"); t += m["dur"] + GAP
     lst = out / "list.txt"
     sil = out / "gap.mp3"
     subprocess.check_call(["ffmpeg", "-y", "-v", "error", "-f", "lavfi", "-i", "anullsrc=r=24000:cl=mono", "-t", str(GAP), "-c:a", "libmp3lame", "-b:a", "48k", str(sil)])
@@ -76,4 +63,11 @@ def main(path, voice, rate, outdir, den=""):
         sys.exit(f"абзацы озвучены не полностью: {plohie}")
 
 if __name__ == "__main__":
-    main(*sys.argv[1:6])
+    # audiogid.py chislo <yaml>                       -> номера абзацев JSON-списком (для matrix)
+    # audiogid.py abzac <yaml> <i> <голос> <темп> <папка>
+    # audiogid.py skleika <yaml> <голос> <темп> <папка> [<день>]
+    cmd, *a = sys.argv[1:]
+    if cmd == "chislo": print(json.dumps(list(range(len(abzacy(a[0])[1])))))
+    elif cmd == "abzac": abzac(*a)
+    elif cmd == "skleika": skleika(*a)
+    else: sys.exit(f"неизвестная команда {cmd}")

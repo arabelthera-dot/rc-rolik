@@ -1,6 +1,7 @@
 # Озвучка аудиогида отдельно от роликов (r310, 28.10.2026): локально edge-tts отдаёт NoAudioReceived,
 # в облаке работает. Голос, ударения (udareniya.json) и повторы — из scripts/tts.py, render.yml не трогается.
 # Только ручной запуск. Выход — артефакт audiogid-<день>: <день>.mp3, <день>.json (длительности абзацев), p*.mp3.
+# Каждый абзац — на своей машине: служба душит одну машину после ~минуты звука подряд (прогон 40637307820 — час отказов).
 # Текст из этого репо:   gh workflow run audiogid.yml -f put=audiogid/01-20.yaml
 # Текст со страницы сайта: gh workflow run audiogid.yml -f vetka_sajta=main -f put=src/content/dni-shablon/izobreteniya/01-17.yaml
 name: audiogid
@@ -22,25 +23,23 @@ on:
         description: "скорость edge-tts"
         default: "+18%"
 concurrency:
-  group: audiogid  # служба голоса не любит разом много заданий (r260) — прогоны по одному
+  group: audiogid  # прогоны по одному (r260)
   cancel-in-progress: false
+env:
+  GOLOS: ${{ inputs.golos || 'ru-RU-DmitryNeural' }}
+  TEMP: ${{ inputs.temp || '+18%' }}
 jobs:
-  audiogid:
+  razbor:
     runs-on: ubuntu-latest
-    timeout-minutes: 60  # до 10 попыток на абзац (с 4-й — по фразам), как в render.yml (r264)
+    timeout-minutes: 10
+    outputs:
+      abzacy: ${{ steps.n.outputs.abzacy }}
+      den: ${{ steps.vhod.outputs.den }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-      # apt иногда виснет (r277, r283): 3 мин на apt, иначе сборка ffmpeg с GitHub — как в render.yml
-      - run: |
-          if ! sudo timeout 180 sh -c 'apt-get update -qq && apt-get install -y -qq ffmpeg'; then
-            echo "apt завис или упал — беру сборку ffmpeg с GitHub (BtbN/FFmpeg-Builds)"
-            curl -fsSL --retry 3 -o /tmp/ff.tar.xz https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-linux64-gpl.tar.xz
-            sudo tar -xJf /tmp/ff.tar.xz -C /opt && sudo ln -sf /opt/ffmpeg-master-latest-linux64-gpl/bin/ffmpeg /opt/ffmpeg-master-latest-linux64-gpl/bin/ffprobe /usr/local/bin/
-          fi
-          ffmpeg -version | head -1
       - run: pip install -q edge-tts==7.3.1 pyyaml==6.0.2
       - id: vhod
         env:
@@ -56,16 +55,92 @@ jobs:
             echo "f=$PUT" >> "$GITHUB_OUTPUT"
           fi
           echo "den=$(basename "$PUT" .yaml)" >> "$GITHUB_OUTPUT"
-      - id: ozv
+      - id: n
+        run: echo "abzacy=$(python scripts/audiogid.py chislo '${{ steps.vhod.outputs.f }}')" >> "$GITHUB_OUTPUT"
+  abzac:
+    needs: razbor
+    runs-on: ubuntu-latest
+    timeout-minutes: 20  # до 10 попыток с растущей паузой ≈ 5,5 мин, как в render.yml (r264)
+    strategy:
+      fail-fast: false
+      max-parallel: 4
+      matrix:
+        i: ${{ fromJSON(needs.razbor.outputs.abzacy) }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install -q edge-tts==7.3.1 pyyaml==6.0.2
+      - id: vhod
         env:
-          F: ${{ steps.vhod.outputs.f }}
-          DEN: ${{ steps.vhod.outputs.den }}
-          GOLOS: ${{ inputs.golos || 'ru-RU-DmitryNeural' }}
-          TEMP: ${{ inputs.temp || '+18%' }}
+          PUT: ${{ inputs.put }}
+          VETKA: ${{ inputs.vetka_sajta }}
         run: |
-          python scripts/audiogid.py "$F" "$GOLOS" "$TEMP" out/audiogid "$DEN"
-          python -c "import json,glob;d=json.load(open(glob.glob('out/audiogid/*.json')[0]));print('## Аудиогид',d['den'],'—',d['total'],'с');[print('-',a['i'],a['start'],'+',a['dur'],'с, слов',a['slov_golos'],'/',a['slov_tekst']) for a in d['abzacy']]" >> "$GITHUB_STEP_SUMMARY"
+          [ -z "$PUT" ] && [ -f .proba ] && . ./.proba  # ВРЕМЕННО (r310)
+          if [ -n "$VETKA" ]; then
+            curl -fsSL --retry 3 -o /tmp/vhod.yaml "https://raw.githubusercontent.com/arabelthera-dot/rc-site/$VETKA/$PUT"
+            echo "f=/tmp/vhod.yaml" >> "$GITHUB_OUTPUT"
+          else
+            test -f "$PUT"
+            echo "f=$PUT" >> "$GITHUB_OUTPUT"
+          fi
+          echo "den=$(basename "$PUT" .yaml)" >> "$GITHUB_OUTPUT"
+      # apt иногда виснет (r277, r283): 3 мин на apt, иначе сборка ffmpeg с GitHub — как в render.yml
+      - run: |
+          if ! sudo timeout 180 sh -c 'apt-get update -qq && apt-get install -y -qq ffmpeg'; then
+            echo "apt завис или упал — беру сборку ffmpeg с GitHub (BtbN/FFmpeg-Builds)"
+            curl -fsSL --retry 3 -o /tmp/ff.tar.xz https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-linux64-gpl.tar.xz
+            sudo tar -xJf /tmp/ff.tar.xz -C /opt && sudo ln -sf /opt/ffmpeg-master-latest-linux64-gpl/bin/ffmpeg /opt/ffmpeg-master-latest-linux64-gpl/bin/ffprobe /usr/local/bin/
+          fi
+          ffmpeg -version | head -1
+      - run: python scripts/audiogid.py abzac '${{ steps.vhod.outputs.f }}' ${{ matrix.i }} "$GOLOS" "$TEMP" out/audiogid
       - uses: actions/upload-artifact@v4
         with:
-          name: audiogid-${{ steps.vhod.outputs.den }}
+          name: abzac-${{ matrix.i }}
+          path: out/audiogid/
+          retention-days: 1
+  skleika:
+    needs: [razbor, abzac]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install -q edge-tts==7.3.1 pyyaml==6.0.2
+      - id: vhod
+        env:
+          PUT: ${{ inputs.put }}
+          VETKA: ${{ inputs.vetka_sajta }}
+        run: |
+          [ -z "$PUT" ] && [ -f .proba ] && . ./.proba  # ВРЕМЕННО (r310)
+          if [ -n "$VETKA" ]; then
+            curl -fsSL --retry 3 -o /tmp/vhod.yaml "https://raw.githubusercontent.com/arabelthera-dot/rc-site/$VETKA/$PUT"
+            echo "f=/tmp/vhod.yaml" >> "$GITHUB_OUTPUT"
+          else
+            test -f "$PUT"
+            echo "f=$PUT" >> "$GITHUB_OUTPUT"
+          fi
+          echo "den=$(basename "$PUT" .yaml)" >> "$GITHUB_OUTPUT"
+      # apt иногда виснет (r277, r283): 3 мин на apt, иначе сборка ffmpeg с GitHub — как в render.yml
+      - run: |
+          if ! sudo timeout 180 sh -c 'apt-get update -qq && apt-get install -y -qq ffmpeg'; then
+            echo "apt завис или упал — беру сборку ffmpeg с GitHub (BtbN/FFmpeg-Builds)"
+            curl -fsSL --retry 3 -o /tmp/ff.tar.xz https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-linux64-gpl.tar.xz
+            sudo tar -xJf /tmp/ff.tar.xz -C /opt && sudo ln -sf /opt/ffmpeg-master-latest-linux64-gpl/bin/ffmpeg /opt/ffmpeg-master-latest-linux64-gpl/bin/ffprobe /usr/local/bin/
+          fi
+          ffmpeg -version | head -1
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: abzac-*
+          merge-multiple: true
+          path: out/audiogid/
+      - run: |
+          python scripts/audiogid.py skleika '${{ steps.vhod.outputs.f }}' "$GOLOS" "$TEMP" out/audiogid '${{ needs.razbor.outputs.den }}'
+          python -c "import json,glob;d=json.load(open(glob.glob('out/audiogid/*-*.json')[0]));print('## Аудиогид',d['den'],'—',d['total'],'с');[print('-',a['i'],a['start'],'+',a['dur'],'с, слов',a['slov_golos'],'/',a['slov_tekst']) for a in d['abzacy']]" >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: audiogid-${{ needs.razbor.outputs.den }}
           path: out/audiogid/
