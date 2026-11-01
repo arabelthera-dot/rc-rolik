@@ -67,10 +67,10 @@ let s = await st(); console.log('после «Пуска»:', s);
 while (s.phase === 'count' && s.T < START - 1e-6) { await step(); s = await st(); }
 console.log('начало съёмки:', s);
 // Rapier догружается по «Пуску» по-настоящему; к разделению (11 с полёта) не успеваем, но пусть будет.
-const stage = page.locator('#r3Stage');
+// page.screenshot с clip, а не locator.screenshot: тот ждёт «стабильности» через requestAnimationFrame, а он у нас ручной.
 const N = Math.round(DUR * FPS);
 for (let k = 0; k < N; k++) {
-  await stage.screenshot({ path: path.join(out, `f${String(k).padStart(5, '0')}.png`), animations: 'allow' });
+  await page.screenshot({ path: path.join(out, `f${String(k).padStart(5, '0')}.png`), clip: { x: 0, y: 0, width: W, height: H }, animations: 'allow', caret: 'initial' });
   await step();
   if (k % 30 === 0) console.log('кадр', k, await st());
 }
