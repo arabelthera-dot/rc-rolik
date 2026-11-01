@@ -47,7 +47,7 @@ jobs:
           ZADACHA: ${{ inputs.zadacha }}
           FORMAT: ${{ inputs.format }}
         run: |
-          [ -n "$(echo $ZADACHA)" ] || { echo "::error::пустая zadacha"; exit 1; }
+          if [ -z "${ZADACHA// /}" ]; then echo "::error::пустая zadacha"; exit 1; fi
           fmts="16x9 9x16"; [ "$FORMAT" = "oba" ] || fmts="$FORMAT"
           items=""; days=""
           for z in $ZADACHA; do
@@ -188,7 +188,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: |
-          echo "$SCENA" | grep -Eq '^[a-z0-9-]+$' && [ -f "zastavka3d/$SCENA/index.html" ] || { echo "::error::нет сцены zastavka3d/$SCENA"; exit 1; }
+          if ! echo "$SCENA" | grep -Eq '^[a-z0-9-]+$' || [ ! -f "zastavka3d/$SCENA/index.html" ]; then
+            echo "::error::нет сцены zastavka3d/$SCENA"; exit 1
+          fi
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -207,7 +209,7 @@ jobs:
           cd out
           bash ../zastavka3d/kodirovat.sh kadry-4x5 "$SCENA-3d-zastavka-4x5"
           bash ../zastavka3d/kodirovat.sh kadry-16x10 "$SCENA-3d-zastavka-16x10"
-          ls -l *.mp4 *.webm *.webp
+          ls -l ./*.mp4 ./*.webm ./*.webp
       - uses: actions/upload-artifact@v4
         with:
           name: zastavka3d-${{ inputs.zastavka3d }}
