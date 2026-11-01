@@ -9,7 +9,7 @@ import path from 'node:path';
 
 const [dir, W, H, out] = [process.argv[2], +process.argv[3], +process.argv[4], process.argv[5]];
 const FPS = 30, STEP = 1000 / FPS;
-const START = +(process.env.START || 4.2);   // секунда отсчёта, с которой снимаем (зажигание — 4,5 с, отрыв — 8,1 с)
+const START = +(process.env.START || 5.4);   // секунда отсчёта, с которой снимаем (5,4: в 8 с входит и подъём со стола — прогон 41299880425 с 4,2 кончался на отрыве) (зажигание — 4,5 с, отрыв — 8,1 с)
 const DUR = +(process.env.DUR || 8);           // длина съёмки, с
 fs.mkdirSync(out, { recursive: true });
 
