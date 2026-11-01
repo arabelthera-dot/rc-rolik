@@ -6,13 +6,16 @@
 # По умолчанию true: проба 05jan B 16x9 (прогон 40085948048) совпала с эталоном — 46,9 с, 11 МБ.
 # Слои (Р249): при sloi=true scripts/layers.py режет подлинные кадры из kadry/<день>/ на фон и передний план
 # здесь же — один раз на день; false — берутся готовые слои из public/days/<день>/.
+# Заставка из 3D-сцены (r521): gh workflow run render.yml -f zastavka3d=r7 (zadacha не нужна) — снимает
+# zastavka3d/<имя>/ в Playwright+SwiftShader по ручным часам и кодирует ролики; обычная сборка при этом не идёт.
 name: render
 on:
   workflow_dispatch:
     inputs:
       zadacha:
-        description: "день:варианты через пробел, напр. 05jan:AB 26jan:A"
-        required: true
+        description: "день:варианты через пробел, напр. 05jan:AB 26jan:A (не нужна при zastavka3d)"
+        required: false
+        default: ""
       format:
         description: "16x9, 9x16 или оба"
         default: "oba"
@@ -24,10 +27,16 @@ on:
         description: "собрать слои кадров в облаке (false — готовые из репо)"
         type: boolean
         default: true
+      zastavka3d:
+        description: "заставка из 3D-сцены: папка в zastavka3d/ (напр. r7); пусто — обычная сборка роликов"
+        required: false
+        default: ""
 concurrency:
   group: render-${{ github.run_id }}
 jobs:
   plan:
+    # при заставке plan пропущен — ozvuchka, layers и render пропускаются вслед за ним
+    if: inputs.zastavka3d == ''
     runs-on: ubuntu-latest
     outputs:
       matrix: ${{ steps.m.outputs.matrix }}
@@ -38,6 +47,7 @@ jobs:
           ZADACHA: ${{ inputs.zadacha }}
           FORMAT: ${{ inputs.format }}
         run: |
+          [ -n "$(echo $ZADACHA)" ] || { echo "::error::пустая zadacha"; exit 1; }
           fmts="16x9 9x16"; [ "$FORMAT" = "oba" ] || fmts="$FORMAT"
           items=""; days=""
           for z in $ZADACHA; do
@@ -167,4 +177,42 @@ jobs:
         with:
           name: ${{ matrix.day }}-${{ matrix.v }}-${{ matrix.f }}
           path: out/*.mp4
+          retention-days: 14
+  zastavka3d:
+    if: inputs.zastavka3d != ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    name: zastavka3d-${{ inputs.zastavka3d }}
+    env:
+      SCENA: ${{ inputs.zastavka3d }}
+    steps:
+      - uses: actions/checkout@v4
+      - run: |
+          echo "$SCENA" | grep -Eq '^[a-z0-9-]+$' && [ -f "zastavka3d/$SCENA/index.html" ] || { echo "::error::нет сцены zastavka3d/$SCENA"; exit 1; }
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      # apt на машине GitHub иногда виснет (r277, r283): 3 мин на apt, иначе сборка ffmpeg с GitHub
+      - run: |
+          if ! sudo timeout 180 sh -c 'apt-get update -qq && apt-get install -y -qq ffmpeg bc'; then
+            curl -fsSL --retry 3 -o /tmp/ff.tar.xz https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-linux64-gpl.tar.xz
+            sudo tar -xJf /tmp/ff.tar.xz -C /opt && sudo ln -sf /opt/ffmpeg-master-latest-linux64-gpl/bin/ffmpeg /opt/ffmpeg-master-latest-linux64-gpl/bin/ffprobe /usr/local/bin/
+          fi
+          ffmpeg -version | head -1
+      - working-directory: zastavka3d
+        run: npm install --no-audit --no-fund && npx playwright install --with-deps chromium
+      - run: node zastavka3d/snyat.mjs "zastavka3d/$SCENA" 720 900 out/kadry-4x5
+      - run: node zastavka3d/snyat.mjs "zastavka3d/$SCENA" 1280 800 out/kadry-16x10
+      - run: |
+          cd out
+          bash ../zastavka3d/kodirovat.sh kadry-4x5 "$SCENA-3d-zastavka-4x5"
+          bash ../zastavka3d/kodirovat.sh kadry-16x10 "$SCENA-3d-zastavka-16x10"
+          ls -l *.mp4 *.webm *.webp
+      - uses: actions/upload-artifact@v4
+        with:
+          name: zastavka3d-${{ inputs.zastavka3d }}
+          path: |
+            out/*.mp4
+            out/*.webm
+            out/*.webp
           retention-days: 14
