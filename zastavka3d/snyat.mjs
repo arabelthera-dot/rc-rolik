@@ -67,12 +67,19 @@ let s = await st(); console.log('после «Пуска»:', s);
 while (s.phase === 'count' && s.T < START - 1e-6) { await step(); s = await st(); }
 console.log('начало съёмки:', s);
 // Rapier догружается по «Пуску» по-настоящему; к разделению (11 с полёта) не успеваем, но пусть будет.
-// page.screenshot с clip, а не locator.screenshot: тот ждёт «стабильности» через requestAnimationFrame, а он у нас ручной.
+// Снимок холста #r3Stage прямо в том же такте, что и отрисовка (toDataURL): скриншоты Playwright
+// ждут кадра через requestAnimationFrame, а он у нас ручной, — они виснут (прогоны 41299600195, 41299727368).
 const N = Math.round(DUR * FPS);
 for (let k = 0; k < N; k++) {
-  await page.screenshot({ path: path.join(out, `f${String(k).padStart(5, '0')}.png`), clip: { x: 0, y: 0, width: W, height: H }, animations: 'allow', caret: 'initial' });
-  await step();
-  if (k % 30 === 0) console.log('кадр', k, await st());
+  // шаг часов (сцена рисует кадр) и снимок холста — в одном evaluate, пока буфер WebGL не сброшен
+  const r = await page.evaluate(() => {
+    window.__vt.step(1000 / 30);
+    const c = document.querySelector('#r3Stage canvas');
+    return { url: c.toDataURL('image/png'), s: window.__r7.st(), w: c.width, h: c.height };
+  });
+  if (r.w !== W || r.h !== H) throw new Error(`холст ${r.w}×${r.h}, а нужен ${W}×${H}`);
+  fs.writeFileSync(path.join(out, `f${String(k).padStart(5, '0')}.png`), Buffer.from(r.url.split(',')[1], 'base64'));
+  if (k % 30 === 0) console.log('кадр', k, r.s);
 }
 console.log('конец съёмки:', await st());
 await browser.close(); srv.close();
