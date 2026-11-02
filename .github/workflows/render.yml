@@ -10,6 +10,9 @@
 # zastavka3d/<имя>/ в Playwright+SwiftShader по ручным часам и кодирует ролики; обычная сборка при этом не идёт.
 name: render
 on:
+  # r579: проба — облёт 3D-моделей 3 и 5 янв. из Блендера (Cycles); только на ветке r579-3d-kodom, в main не сливать
+  push:
+    branches: [r579-3d-kodom]
   workflow_dispatch:
     inputs:
       zadacha:
@@ -36,7 +39,7 @@ concurrency:
 jobs:
   plan:
     # при заставке plan пропущен — ozvuchka, layers и render пропускаются вслед за ним
-    if: inputs.zastavka3d == ''
+    if: github.event_name == 'workflow_dispatch' && inputs.zastavka3d == ''
     runs-on: ubuntu-latest
     outputs:
       matrix: ${{ steps.m.outputs.matrix }}
@@ -179,7 +182,7 @@ jobs:
           path: out/*.mp4
           retention-days: 14
   zastavka3d:
-    if: inputs.zastavka3d != ''
+    if: github.event_name == 'workflow_dispatch' && inputs.zastavka3d != ''
     runs-on: ubuntu-latest
     timeout-minutes: 60
     name: zastavka3d-${{ inputs.zastavka3d }}
@@ -217,4 +220,53 @@ jobs:
             out/*.mp4
             out/*.webm
             out/*.webp
+          retention-days: 14
+
+  # r579: кадры облёта 03 (булат) и 05 (нефтепровод) — 240 кадров на предмет, 12 машин по 20 кадров; команда кадров — blender/r579-<день>/kadry.sh <с> <по> <папка>
+  oblet-kadry:
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        den: ["03", "05"]
+        part: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]
+    steps:
+      - uses: actions/checkout@v4
+      - run: |
+          sudo timeout 300 apt-get install -y -qq libxrender1 libxxf86vm1 libxfixes3 libxi6 libxkbcommon0 libsm6 libgl1 libegl1 >/dev/null || true
+          curl -fsSL --retry 3 -o /tmp/b.tar.xz https://download.blender.org/release/Blender4.2/blender-4.2.3-linux-x64.tar.xz
+          mkdir -p /opt/bl && tar -xJf /tmp/b.tar.xz -C /opt/bl --strip-components=1
+      - run: |
+          a=$(( ${{ matrix.part }} * 20 )); b=$(( a + 19 ))
+          cd blender/r579-${{ matrix.den }} && BL=/opt/bl/blender bash kadry.sh $a $b $GITHUB_WORKSPACE/out/kadry 2>&1 | grep -E "Saved|Error|Traceback|rror" || true
+          ls $GITHUB_WORKSPACE/out/kadry | wc -l
+      - uses: actions/upload-artifact@v4
+        with:
+          name: r579-${{ matrix.den }}-kadry-${{ matrix.part }}
+          path: out/kadry
+          retention-days: 7
+  oblet-rolik:
+    needs: oblet-kadry
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        den: ["03", "05"]
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: r579-${{ matrix.den }}-kadry-*
+          path: kadry
+          merge-multiple: true
+      - run: |
+          sudo timeout 300 sh -c 'apt-get update -qq && apt-get install -y -qq ffmpeg' >/dev/null
+          ls kadry | wc -l
+          ffmpeg -y -loglevel error -framerate 24 -i kadry/f%05d.png -c:v libx264 -preset slow -crf 20 -pix_fmt yuv420p -movflags +faststart r579-${{ matrix.den }}-oblet.mp4
+          ffprobe -v error -show_entries format=duration:stream=width,height,nb_frames -of compact r579-${{ matrix.den }}-oblet.mp4; ls -l r579-*.mp4
+      - uses: actions/upload-artifact@v4
+        with:
+          name: r579-${{ matrix.den }}-oblet-mp4
+          path: r579-*.mp4
           retention-days: 14
