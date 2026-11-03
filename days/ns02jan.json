@@ -1,0 +1,94 @@
+{
+ "id": "ns02jan",
+ "source_md": "rc-site src/content/dni-shablon/ne-sdayutsya/01-02.yaml",
+ "voice": "ru-RU-DmitryNeural",
+ "rate": "+18%",
+ "segments": [
+  {
+   "id": "hook",
+   "say": "Восемнадцать пушек против ста восьмидесяти четырёх. И малый бриг не спустил флага.",
+   "show": "18 пушек против 184. И малый бриг не спустил флага.",
+   "image": "ataka",
+   "fx": "photo"
+  },
+  {
+   "id": "pogonya",
+   "say": "Май тысяча восемьсот двадцать девятого, у Босфора. Тихоходный «Меркурий» отстал от своих, и за ним погнались два турецких линкора.",
+   "show": "Май 1829 года, у Босфора. Тихоходный «Меркурий» отстал от своих, и за ним погнались два турецких линкора.",
+   "image": "boy",
+   "fx": "photo"
+  },
+  {
+   "id": "rafail",
+   "say": "Сдаться было проще всего. За три дня до этого так сдался фрегат «Рафаил».",
+   "image": "model",
+   "fx": "photo"
+  },
+  {
+   "id": "sovet",
+   "say": "Капитан-лейтенант Казарский собрал совет. Решили: принять бой, а если корабль не удержать — взорвать его.",
+   "image": "ataka2",
+   "fx": "photo"
+  },
+  {
+   "id": "machty",
+   "say": "Четыре часа бриг бил по мачтам и снастям линкоров, лишая их хода. И вернулся к своим.",
+   "image": "vstrecha",
+   "fx": "photo"
+  },
+  {
+   "id": "flag",
+   "say": "Награда — кормовой Георгиевский флаг. А имя брига потом носил крейсер «Память Меркурия». Русские не сдаются.",
+   "image": "kreyser",
+   "fx": "photo"
+  },
+  {
+   "id": "cta",
+   "say": "Смотри день целиком на сайте рашн-цивилизейшн точка ру.",
+   "show": "Смотри день целиком на russian-civilization.ru",
+   "image": null,
+   "fx": "endcard",
+   "labels": {
+    "deco": "none"
+   }
+  }
+ ],
+ "images": {
+  "ataka": {
+   "src": "kadry/ns02jan/ayv1892.jpg",
+   "parallax": false
+  },
+  "boy": {
+   "src": "kadry/ns02jan/gk8825220.jpg",
+   "parallax": false
+  },
+  "model": {
+   "src": "kadry/ns02jan/gk24083009.jpg",
+   "parallax": false,
+   "crop": [
+    0,
+    0.25,
+    1,
+    0.45
+   ]
+  },
+  "ataka2": {
+   "src": "kadry/ns02jan/ayv1892.jpg",
+   "parallax": false,
+   "crop": [
+    0.3,
+    0.15,
+    0.6,
+    0.51
+   ]
+  },
+  "vstrecha": {
+   "src": "kadry/ns02jan/ayv1848.jpg",
+   "parallax": false
+  },
+  "kreyser": {
+   "src": "kadry/ns02jan/gk4976575.jpg",
+   "parallax": false
+  }
+ }
+}

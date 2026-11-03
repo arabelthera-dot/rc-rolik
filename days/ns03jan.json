@@ -1,0 +1,100 @@
+{
+ "id": "ns03jan",
+ "source_md": "rc-site src/content/dni-shablon/ne-sdayutsya/01-03.yaml",
+ "voice": "ru-RU-DmitryNeural",
+ "rate": "+18%",
+ "segments": [
+  {
+   "id": "hook",
+   "say": "Полк ушёл. У моста остался один двадцатилетний сержант с одной пушкой.",
+   "image": "pushka",
+   "fx": "photo"
+  },
+  {
+   "id": "most",
+   "say": "Семнадцатое июля тысяча девятьсот сорок первого, под Кричевом. Николай Сиротинин остался прикрывать отход у моста через Добрость.",
+   "show": "17 июля 1941 года, под Кричевом. Николай Сиротинин остался прикрывать отход у моста через Добрость.",
+   "image": "f22",
+   "fx": "photo"
+  },
+  {
+   "id": "kolonna",
+   "say": "Первый выстрел — головной танк. Второй — замыкающая машина. Колонна встала: ни вперёд, ни назад.",
+   "image": "zal",
+   "fx": "photo"
+  },
+  {
+   "id": "dva",
+   "say": "Около двух часов противник не мог понять, что орудие одно.",
+   "image": "gilza",
+   "fx": "photo"
+  },
+  {
+   "id": "karabin",
+   "say": "Снаряды кончились — он отстреливался из карабина до последнего патрона. Сдаться отказался.",
+   "image": "snaryad",
+   "fx": "photo"
+  },
+  {
+   "id": "chest",
+   "say": "Немецкие офицеры отдали честь на его похоронах. Двадцать лет, один ствол — и выбор не сдаться.",
+   "show": "Немецкие офицеры отдали честь на его похоронах. 20 лет, один ствол — и выбор не сдаться.",
+   "image": "medalon",
+   "fx": "photo"
+  },
+  {
+   "id": "cta",
+   "say": "Смотри день целиком на сайте рашн-цивилизейшн точка ру.",
+   "show": "Смотри день целиком на russian-civilization.ru",
+   "image": null,
+   "fx": "endcard",
+   "labels": {
+    "deco": "none"
+   }
+  }
+ ],
+ "images": {
+  "pushka": {
+   "src": "kadry/ns03jan/gk40548452.jpg",
+   "parallax": false
+  },
+  "f22": {
+   "src": "kadry/ns03jan/gk68536113.jpg",
+   "parallax": false
+  },
+  "zal": {
+   "src": "kadry/ns03jan/gk13617029.jpg",
+   "parallax": false
+  },
+  "gilza": {
+   "src": "kadry/ns03jan/gk12025903.jpg",
+   "parallax": false,
+   "crop": [
+    0,
+    0.2,
+    1,
+    0.5
+   ]
+  },
+  "snaryad": {
+   "src": "kadry/ns03jan/gk12008284.jpg",
+   "parallax": false,
+   "crop": [
+    0,
+    0.2,
+    1,
+    0.5
+   ]
+  },
+  "medalon": {
+   "src": "kadry/ns03jan/gk3743748.jpg",
+   "parallax": false,
+   "crop": [
+    0,
+    0.2,
+    1,
+    0.45
+   ]
+  }
+ }
+}
