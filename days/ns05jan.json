@@ -1,6 +1,7 @@
 {
   "id": "ns05jan",
   "source_md": "knowledge/ns-utverzhdeno/ns-01-05.md (утверждено Сергеем), хук — rc-site src/content/days/ne-sdayutsya/01-05.json, кадры — knowledge/ns-material/01-05.md (Госкаталог)",
+  "sajt": {"muzei": "ne-sdayutsya", "reestr": "nesdayutsya", "imya": "05jan-brest"},
   "voice": "ru-RU-DmitryNeural",
   "rate": "+18%",
   "segments": [
