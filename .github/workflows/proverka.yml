@@ -2,6 +2,7 @@
 # Нужна, чтобы слияние шло по правилу «все проверки зелёные». Проверяет:
 # - workflows — actionlint (бинарник закреплён по sha256 выпуска v1.7.12);
 # - общий ffmpeg (.github/actions/ffmpeg) ставится и умеет нужные фильтры;
+# - scripts/format.mjs --proba — проверка формата ловит брак на образцах;
 # - scripts/*.py — python -m py_compile;
 # - все *.json — разбор python json, все *.yml/*.yaml — разбор yq;
 # - замок хука (r544 п.5, Р536): days/ns*.json — первая сцена = хук утверждённой карточки rc-site, кадры свои.
@@ -40,6 +41,9 @@ jobs:
           for f in alimiter loudnorm amix apad; do
             ffmpeg -hide_banner -filters | grep -qw "$f" || { echo "::error::в ffmpeg нет фильтра $f"; exit 1; }
           done
+      # проверка формата ролика и гида ловит каждый брак на образцах (Р507): квадрат, без звука, длительность, вес
+      - name: node scripts/format.mjs --proba
+        run: node scripts/format.mjs --proba
       - name: python -m py_compile scripts/*.py
         run: python3 -m py_compile scripts/*.py
       - name: JSON

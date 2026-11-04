@@ -157,6 +157,11 @@ jobs:
       - run: |
           python scripts/audiogid.py skleika '${{ steps.vhod.outputs.f }}' "$GOLOS" "$TEMP" out/audiogid '${{ needs.razbor.outputs.den }}'
           python -c "import json,glob;d=json.load(open(glob.glob('out/audiogid/*-*.json')[0]));print('## Аудиогид',d['den'],'—',d['total'],'с');[print('-',a['i'],a['start'],'+',a['dur'],'с, слов',a['slov_golos'],'/',a['slov_tekst']) for a in d['abzacy']]" >> "$GITHUB_STEP_SUMMARY"
+      # одна проверка формата (r544 п.6, аудит r530 п.65): одна дорожка mp3, 30 с – 30 мин, ≤ 20 МБ; брак — выпуска нет
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+      - run: node scripts/format.mjs 'out/audiogid/${{ needs.razbor.outputs.den }}.mp3'
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: audiogid-${{ needs.razbor.outputs.den }}

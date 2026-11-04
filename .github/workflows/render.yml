@@ -161,11 +161,13 @@ jobs:
       - uses: ./.github/actions/ffmpeg
       - run: npm ci
       - run: node scripts/render.mjs "${{ matrix.day }}" "${{ matrix.v }}" "${{ matrix.f }}"
-      # обложка (кадр 1 с) и длительность — здесь, где есть ffmpeg: выпуск на сайт их только переименовывает (r538)
+      # одна проверка формата (r544 п.6, аудит r530 п.65): кадр 16:9/9:16, длительность, звук, размер; брак — красное задание, выпуска нет.
+      # Она же пишет <ролик>.sec — длительность для выпуска на сайт; больше ролик никто не перемеряет.
+      - run: node scripts/format.mjs out/*.mp4
+      # обложка (кадр 1 с) — здесь, где есть ffmpeg: выпуск на сайт её только переименовывает (r538)
       - run: |
           for f in out/*.mp4; do
             ffmpeg -v error -y -ss 1 -i "$f" -frames:v 1 -q:v 3 "${f%.mp4}-poster.jpg"
-            ffprobe -v error -show_entries format=duration -of csv=p=0 "$f" > "${f%.mp4}.sec"
           done
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
