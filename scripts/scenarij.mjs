@@ -1,0 +1,151 @@
+// Сценарий ролика «Русские не сдаются» — машиной из записи дня сайта (r544 п.5, Р534/Р536; аудит r530 п.57).
+// Как в мире: данные ролика — входные props из записи дня, не вторая копия руками (https://www.remotion.dev/docs/passing-props).
+// Источник — только rc-site (ветка main или своя копия RC_SITE=<путь>):
+//   src/content/days/ne-sdayutsya/ММ-ДД.json — хук карточки, дословно первой сценой (замок scripts/zamok-huk.mjs);
+//   src/content/dni-shablon/ne-sdayutsya/ММ-ДД.yaml — утверждённые факты страницы (fakty[].udary: summary + kadr) и обложка;
+//   их кадры public/muzei/ne-sdayutsya/img/… копируются в kadry/<день>/ — других кадров в ролике нет.
+// Сцены: hook (обложка) → факты по порядку страницы (каждый на кадре страницы), пока ролик укладывается в 40–60 с, последний кончается
+// «Русские не сдаются.» → cta. Ударения ставит scripts/tts.py по udareniya.json; числа в say читает голос.
+// Факт без своего кадра идёт на следующем кадре страницы; не набралось 40 с, нет хука или обложки — день не пишется, код 2.
+// Запуск: node scripts/scenarij.mjs 01-06..01-15 [--proba] — --proba только печатает мерило, ничего не пишет.
+// Откат: удалить файл; days/*.json, собранные им, остаются обычными сценариями.
+import fs from 'node:fs';
+import path from 'node:path';
+import yaml from 'js-yaml';
+import { kartochka, zamokDnya, norm } from './zamok-huk.mjs';
+
+const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..');
+const MES = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
+const RAW = 'https://raw.githubusercontent.com/arabelthera-dot/rc-site/main';
+const ZNAKOV_V_SEK = 13.2; // ns04jan: 625 знаков озвучки — 47,5 с в облаке (rate +18%)
+const MIN_SEK = 40, MAX_SEK = 60, CEL_SEK = 52;
+const CTA = { id: 'cta', say: 'Смотри день целиком на сайте рашн-цивилизейшн точка ру.', show: 'Смотри день целиком на russian-civilization.ru', image: null, fx: 'endcard', labels: { deco: 'none' } };
+const FINAL = 'Русские не сдаются.';
+
+const argi = process.argv.slice(2);
+const PROBA = argi.includes('--proba');
+const dni = [];
+for (const a of argi.filter((x) => !x.startsWith('--'))) {
+  const m = a.match(/^(\d\d)-(\d\d)(?:\.\.(\d\d)-(\d\d))?$/);
+  if (!m) { console.error(`ОСТАНОВ: день — ММ-ДД или ММ-ДД..ММ-ДД, а не ${a}`); process.exit(1); }
+  for (let d = +m[2]; d <= +(m[4] ?? m[2]); d++) dni.push(`${m[1]}-${String(d).padStart(2, '0')}`);
+}
+if (!dni.length) { console.error('запуск: node scripts/scenarij.mjs 01-06..01-15 [--proba]'); process.exit(1); }
+
+async function sajt(rel, kak = 'text') {
+  if (process.env.RC_SITE) {
+    const f = path.join(process.env.RC_SITE, rel);
+    if (!fs.existsSync(f)) return null;
+    return kak === 'text' ? fs.readFileSync(f, 'utf8') : fs.readFileSync(f);
+  }
+  const r = await fetch(`${RAW}/${rel}`);
+  if (r.status === 404) return null;
+  if (!r.ok) throw new Error(`rc-site ${rel}: HTTP ${r.status}`);
+  return kak === 'text' ? r.text() : Buffer.from(await r.arrayBuffer());
+}
+
+const chistyj = (s) => String(s ?? '').replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim().replace(/([^.!?…»])$/, '$1.');
+const sek = (segs) => segs.reduce((n, s) => n + s.say.length, 0) / ZNAKOV_V_SEK;
+
+// ширина и высота JPEG/PNG — для crop портретов (check.mjs: в 16:9 видно не меньше половины высоты)
+const razmer = (b) => {
+  if (b[0] === 0x89 && b[1] === 0x50) return { w: b.readUInt32BE(16), h: b.readUInt32BE(20) };
+  for (let i = 2; i < b.length - 9;) {
+    if (b[i] !== 0xff) { i++; continue; }
+    const m = b[i + 1];
+    if (m >= 0xc0 && m <= 0xcf && m !== 0xc4 && m !== 0xc8 && m !== 0xcc) return { w: b.readUInt16BE(i + 7), h: b.readUInt16BE(i + 5) };
+    i += 2 + b.readUInt16BE(i + 2);
+  }
+  return null;
+};
+
+async function denOdin(key) {
+  const [mm, dd] = key.split('-');
+  const id = `ns${dd}${MES[+mm - 1]}`;
+  const k = await kartochka(key);
+  if (!k?.hook) return { id, key, otkaz: `нет хука в карточке src/content/days/ne-sdayutsya/${key}.json` };
+  const yt = await sajt(`src/content/dni-shablon/ne-sdayutsya/${key}.yaml`);
+  if (!yt) return { id, key, otkaz: `нет страницы src/content/dni-shablon/ne-sdayutsya/${key}.yaml` };
+  const st = yaml.load(yt);
+  if (!st.oblozhka?.src) return { id, key, otkaz: 'нет обложки страницы (oblozhka.src) для сцены хука' };
+
+  const kadry = new Map(); // src сайта → имя кадра в сценарии
+  const kadr = (src) => {
+    if (!kadry.has(src)) kadry.set(src, `k${kadry.size + 1}`);
+    return kadry.get(src);
+  };
+  const segs = [{ id: 'hook', say: k.hook.trim(), image: kadr(st.oblozhka.src), fx: 'photo', show: k.hook.trim() }];
+  const fakty = (st.fakty || []).flatMap((b) => b.udary || []).filter((u) => u.summary);
+  const bezKadra = fakty.filter((u) => !u.kadr?.src).length;
+  // пул кадров страницы: обложка, кадры фактов, figures; факт без своего кадра берёт следующий ещё не показанный
+  const pul = [st.oblozhka.src, ...fakty.map((u) => u.kadr?.src), ...(st.figures || []).map((f) => f.src)]
+    .filter((x, i, a) => x && a.indexOf(x) === i);
+  let po = 0;
+  const svobodnyj = () => {
+    const net = pul.find((x) => !kadry.has(x));
+    return net ?? pul[po++ % pul.length];
+  };
+  for (const u of fakty) {
+    const say = chistyj(u.summary);
+    if (segs.some((x) => x.say === say)) continue;
+    const nov = { id: `f${segs.length}`, say, show: say, fx: 'photo' };
+    if (sek([...segs, nov, CTA]) + FINAL.length / ZNAKOV_V_SEK > CEL_SEK) break;
+    nov.image = kadr(u.kadr?.src && !segs.some((x) => x.image === kadry.get(u.kadr.src)) ? u.kadr.src : svobodnyj());
+    segs.push(nov);
+  }
+  if (segs.length < 2) return { id, key, otkaz: 'ни одного факта с кадром на странице' };
+  const posl = segs[segs.length - 1];
+  posl.say = `${posl.say} ${FINAL}`;
+  posl.show = `${posl.show} ${FINAL}`;
+  segs.push(CTA);
+  const dlit = +sek(segs).toFixed(1);
+
+  const staryj = fs.existsSync(path.join(ROOT, 'days', `${id}.json`)) ? JSON.parse(fs.readFileSync(path.join(ROOT, 'days', `${id}.json`), 'utf8')) : null;
+  const slug = String(st.audioguide?.audioSrc ?? '').match(/audio-guide-(.+?)-ru/)?.[1];
+  // имя файлов ролика — как у конвейера сайта (scripts/ns-konveyer.mjs): дата + имя аудиогида; video.klyuch страницы бывает старым (06aug)
+  const imya = slug ? `${dd}${MES[+mm - 1]}-${slug}` : staryj?.sajt?.imya;
+  const cfg = {
+    id,
+    source_md: `rc-site src/content/days/ne-sdayutsya/${key}.json (hook); src/content/dni-shablon/ne-sdayutsya/${key}.yaml (факты, кадры) — собрано scripts/scenarij.mjs`,
+    voice: 'ru-RU-DmitryNeural',
+    rate: '+18%',
+    ...(imya ? { sajt: { muzei: 'ne-sdayutsya', reestr: 'nesdayutsya', imya } } : {}),
+    segments: segs,
+    images: {},
+  };
+  const fajly = [];
+  for (const [src, im] of kadry) {
+    const b = await sajt(`public${src}`, 'bin');
+    if (!b) return { id, key, otkaz: `нет файла кадра public${src} на сайте` };
+    const f = `kadry/${id}/${path.basename(src)}`;
+    const r = razmer(b);
+    const obraz = { src: f, parallax: false };
+    // портрет: в 16:9 без crop видно меньше половины высоты — берём верх снимка, где лицо
+    if (r && r.w / r.h / (16 / 9) < 0.5) obraz.crop = [0, 0.05, 1, +Math.min(1, 0.05 + r.w / r.h / (16 / 9) / 0.55).toFixed(3)];
+    cfg.images[im] = obraz;
+    fajly.push([f, b]);
+  }
+  const meril = {
+    dlit, vOkne: dlit >= MIN_SEK && dlit <= MAX_SEK,
+    hukDoslovno: norm(segs[0].show) === norm(k.hook),
+    kadryNashi: Object.values(cfg.images).every((x) => x.src.startsWith(`kadry/${id}/`)),
+    faktov: segs.length - 2, bezKadra,
+  };
+  return { id, key, cfg, fajly, meril };
+}
+
+let plohih = 0;
+for (const key of dni) {
+  const r = await denOdin(key);
+  if (r.otkaz) { plohih++; console.log(`✗ ${key} ${r.id}: ${r.otkaz}`); continue; }
+  const m = r.meril, ok = m.vOkne && m.hukDoslovno && m.kadryNashi;
+  if (!ok) plohih++;
+  console.log(`${ok ? '✓' : '✗'} ${key} ${r.id}: ~${m.dlit} с, фактов ${m.faktov} (без кадра на странице ${m.bezKadra}), хук ${m.hukDoslovno ? '= карточка' : '≠ карточка'}, кадров ${Object.keys(r.cfg.images).length}`);
+  if (PROBA || !ok) continue;
+  fs.mkdirSync(path.join(ROOT, 'kadry', r.id), { recursive: true });
+  for (const [f, b] of r.fajly) fs.writeFileSync(path.join(ROOT, f), b);
+  fs.writeFileSync(path.join(ROOT, 'days', `${r.id}.json`), `${JSON.stringify(r.cfg, null, 2)}\n`);
+  const z = await zamokDnya(r.id);
+  if (z.length) { plohih++; z.forEach((e) => console.log(`  ✗ замок: ${e}`)); }
+}
+process.exit(plohih ? 2 : 0);
