@@ -1,0 +1,63 @@
+{
+ "id": "9jan",
+ "source_md": "rc-site src/data/full-pages/ne-sdayutsya/01-09.html",
+ "voice": "ru-RU-DmitryNeural",
+ "rate": "+18%",
+ "segments": [
+  {
+   "id": "hook",
+   "say": "Двадцать восемь против полусотни танков — и «отступать некуда».",
+   "show": "28 против полусотни танков — и «отступать некуда»",
+   "image": "oblozhka",
+   "fx": "photo"
+  },
+  {
+   "id": "boy",
+   "say": "Шестнадцатого ноября сорок первого года, у разъезда Дубосе́ково, на второй взвод шли до пятидесяти танков. Бой длился четыре-пять часов. Взвод подбил восемнадцать.",
+   "show": "16 ноября 1941 года, у разъезда Дубосеково, на второй взвод шли до 50 танков. Бой длился 4–5 часов. Взвод подбил 18.",
+   "image": "boy",
+   "fx": "photo"
+  },
+  {
+   "id": "pushka",
+   "say": "Против танков у полка была одна противотанковая пушка. Остальное — гранаты в руках.",
+   "image": "granaty",
+   "fx": "photo"
+  },
+  {
+   "id": "vasilev",
+   "say": "Илларион Васильев подползал к танкам на семь метров и подкладывал гранаты под гусеницы.",
+   "show": "Илларион Васильев подползал к танкам на 7 метров и подкладывал гранаты под гусеницы.",
+   "image": "data",
+   "fx": "photo"
+  },
+  {
+   "id": "klochkov",
+   "say": "Политрук Клочко́в узнал, что на взвод идут танки, и сам пошёл туда.",
+   "image": "klochkov",
+   "fx": "photo"
+  },
+  {
+   "id": "natarov",
+   "say": "Смертельно раненный Иван Ната́ров успел рассказать о бое. Так страна узнала о подвиге.",
+   "image": "natarov",
+   "fx": "photo"
+  },
+  {
+   "id": "cta",
+   "say": "Смотри день целиком на сайте рашн-цивилизейшн точка ру.",
+   "show": "Смотри день целиком на russian-civilization.ru",
+   "image": null,
+   "fx": "endcard",
+   "labels": {"deco": "none"}
+  }
+ ],
+ "images": {
+  "oblozhka": {"src": "kadry/9jan/gk-17023354.jpg", "parallax": false},
+  "boy": {"src": "kadry/9jan/gk-19345257.jpg", "crop": [0, 0.22, 1, 0.62], "parallax": false},
+  "granaty": {"src": "kadry/9jan/gk-17486577.jpg", "parallax": false},
+  "data": {"src": "kadry/9jan/gk-25397183.jpg", "parallax": false},
+  "klochkov": {"src": "kadry/9jan/gk-5087514.jpg", "parallax": false},
+  "natarov": {"src": "kadry/9jan/gk-27296206.jpg", "parallax": false}
+ }
+}
