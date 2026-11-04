@@ -1,7 +1,9 @@
 #!/bin/sh
 # Ролик дня одной строкой: scripts/day.sh <день> [A|B|AB] [16x9|9x16|oba] [--lokalno]
 # Сборка — в облаке rc-rolik (render.yml, Р243): здесь только коммит days/<день>.json, kadry/<день>/
-# (и public/days/<день>/insert.mp4 для B), запуск прогона и скачивание готового в out/.
+# (и public/days/<день>/insert.mp4 для B), запуск прогона и скачивание готового в out/ — только для показа.
+# На сайт ролик сам приходит заявкой rc-site rolik-na-sait (r538, Р524): облако выпускает vypusk-<день>-<прогон>,
+# если в days/<день>.json есть поле sajt и собраны оба формата. Из out/ на сайт ничего не носить.
 # Голос, звук, слои и рендер идут на машинах GitHub. --lokalno — старая сборка на нашем сервере, только в крайнем случае.
 set -e
 cd "$(dirname "$0")/.."
@@ -69,3 +71,4 @@ mkdir -p out
 find "$TMP" -name '*.mp4' -exec mv {} out/ \;
 rm -r "$TMP"
 ls -l out/"$DAY"-*.mp4
+echo "out/ — только для показа. На сайт: $(gh release list -R "$REPO" --json tagName -q "[.[] | select(.tagName == \"vypusk-$DAY-$ID\")][0].tagName // \"выпуска нет (нет поля sajt в days/$DAY.json или формат не oba)\"") — ждать заявку rolik-na-sait в arabelthera-dot/rc-site"
