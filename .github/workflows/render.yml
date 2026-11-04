@@ -175,77 +175,20 @@ jobs:
             out/*-poster.jpg
             out/*.sec
           retention-days: 14
-  # Выпуск на сайт (r538, Р524/Р525/Р529): ролик сам приходит на сайт заявкой, руками mp4 никто не носит.
-  # Как в мире: сборка публикует готовое как GitHub Release, потребитель забирает выпуск и открывает заявку
-  # (peter-evans/create-pull-request, gh pr create). Здесь — первая половина: выпуск vypusk-<день>-<прогон>
-  # с файлами под именами сайта и vypusk.json. Вторую делает rc-site: .github/workflows/rolik-na-sait.yml.
-  # Куда — поле "sajt" в days/<день>.json: {"muzei": "ne-sdayutsya", "reestr": "nesdayutsya", "imya": "04jan-kozelsk"}
-  # (+ "variant", по умолчанию A). Нет поля или собраны не оба формата — выпуска нет, день на сайт не идёт.
-  # Свой GITHUB_TOKEN (contents: write только этому заданию), секретов не нужно. Откат — удалить задание vypusk.
+  # Выпуск на сайт (r538/r544): общий шаг .github/workflows/vypusk.yml — тот же, что ручной выпуск из готового прогона.
   vypusk:
     needs: [plan, render]
     if: always() && needs.plan.result == 'success' && inputs.format == 'oba'
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
     permissions:
       contents: write
+      actions: read
     strategy:
       fail-fast: false
       matrix:
         day: ${{ fromJson(needs.plan.outputs.days) }}
-    name: vypusk-${{ matrix.day }}
-    env:
-      DAY: ${{ matrix.day }}
-      GH_TOKEN: ${{ github.token }}
-    steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
-        with:
-          persist-credentials: false
-      - id: s
-        run: |
-          s=$(jq -c '.sajt // empty' "days/$DAY.json")
-          if [ -z "$s" ]; then
-            echo "Выпуска на сайт нет: в days/$DAY.json нет поля sajt." | tee -a "$GITHUB_STEP_SUMMARY"
-            echo "est=0" >> "$GITHUB_OUTPUT"; exit 0
-          fi
-          imya=$(jq -r '.imya // empty' <<<"$s"); muzei=$(jq -r '.muzei // empty' <<<"$s"); reestr=$(jq -r '.reestr // empty' <<<"$s")
-          # imya — ключ выпуска в реестре сайта: только латиница, и начинается с ДДмес дня (скопированный чужой sajt не перезапишет чужой ролик)
-          ddmes=$(grep -o '[0-9][0-9][a-z][a-z][a-z]' <<<"$DAY" | head -1)
-          if ! grep -Eq '^[a-z0-9-]+$' <<<"$imya$muzei$reestr" || [ -z "$muzei" ] || [ -z "$reestr" ] || [ "${imya#"$ddmes"-}" = "$imya" ]; then
-            echo "::error::days/$DAY.json: sajt $s — нужны muzei, reestr, imya латиницей, imya начинается с $ddmes-"; exit 1
-          fi
-          echo "est=1" >> "$GITHUB_OUTPUT"
-          echo "v=$(jq -r '.variant // "A"' <<<"$s")" >> "$GITHUB_OUTPUT"
-      - if: steps.s.outputs.est == '1'
-        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
-        with:
-          pattern: ${{ matrix.day }}-${{ steps.s.outputs.v }}-*
-          merge-multiple: true
-          path: sobrano
-      - if: steps.s.outputs.est == '1'
-        env:
-          V: ${{ steps.s.outputs.v }}
-        run: |
-          s=$(jq -c '.sajt' "days/$DAY.json"); imya=$(jq -r .imya <<<"$s")
-          mkdir rel
-          for f in 16x9 9x16; do
-            src="sobrano/$DAY-$V-$f"; suf=""; [ "$f" = 9x16 ] && suf="-9x16"
-            [ -f "$src.mp4" ] || { echo "::error::нет $src.mp4 — формат $f не собран, выпуска нет"; exit 1; }
-            cp "$src.mp4" "rel/day-$imya$suf.mp4"; cp "$src-poster.jpg" "rel/day-$imya$suf-poster.jpg"
-            jq -n --arg f "$f" --arg sec "$(cat "$src.sec")" --arg b "$(stat -c %s "$src.mp4")" \
-              '{($f): {sec: ($sec|tonumber*10|round/10), mb: ($b|tonumber/1048576*10|round/10)}}' > "sobrano/$f.json"
-          done
-          jq -n --arg den "$DAY" --arg run "$GITHUB_RUN_ID" --arg v "$V" --argjson s "$s" \
-            --arg hook "$(jq -r '[.segments[] | select(.id == "hook")][0] | .show // .say // ""' "days/$DAY.json")" \
-            --slurpfile a sobrano/16x9.json --slurpfile b sobrano/9x16.json \
-            '{vid: "rolik", den: $den, run: ($run|tonumber), variant: $v, hook: $hook} + $s + {fajly: ($a[0] + $b[0])}' > rel/vypusk.json
-          cat rel/vypusk.json
-          tag="vypusk-$DAY-$GITHUB_RUN_ID"
-          gh release view "$tag" -R "$GITHUB_REPOSITORY" >/dev/null 2>&1 && { echo "Выпуск $tag уже есть."; exit 0; }
-          gh release create "$tag" rel/* -R "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --latest=false \
-            --title "Выпуск $DAY → $(jq -r '.reestr + "/" + .imya' rel/vypusk.json)" \
-            --notes "Ролик $DAY, вариант $V, прогон $GITHUB_RUN_ID. На сайт придёт заявкой rc-site rolik-na-sait (r538)."
-          echo "Выпуск на сайт: https://github.com/$GITHUB_REPOSITORY/releases/tag/$tag" | tee -a "$GITHUB_STEP_SUMMARY"
+    uses: ./.github/workflows/vypusk.yml
+    with:
+      day: ${{ matrix.day }}
   zastavka3d:
     if: inputs.zastavka3d != ''
     runs-on: ubuntu-latest
