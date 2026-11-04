@@ -36,19 +36,29 @@ jobs:
       abzacy: ${{ steps.n.outputs.abzacy }}
       den: ${{ steps.vhod.outputs.den }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
         with:
           python-version: "3.11"
       - run: pip install -q edge-tts==7.3.1 pyyaml==6.0.2
+      # карточка дня с ветки сайта — штатным checkout, а не curl по raw-ссылке (r544 п.6, аудит r530 п.62)
+      - if: inputs.vetka_sajta != ''
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          repository: arabelthera-dot/rc-site
+          ref: ${{ inputs.vetka_sajta }}
+          path: rc-site
+          sparse-checkout: ${{ inputs.put }}
+          sparse-checkout-cone-mode: false
+          persist-credentials: false
       - id: vhod
         env:
           PUT: ${{ inputs.put }}
           VETKA: ${{ inputs.vetka_sajta }}
         run: |
           if [ -n "$VETKA" ]; then
-            curl -fsSL --retry 3 -o /tmp/vhod.yaml "https://raw.githubusercontent.com/arabelthera-dot/rc-site/$VETKA/$PUT"
-            echo "f=/tmp/vhod.yaml" >> "$GITHUB_OUTPUT"
+            test -f "rc-site/$PUT"
+            echo "f=rc-site/$PUT" >> "$GITHUB_OUTPUT"
           else
             test -f "$PUT"
             echo "f=$PUT" >> "$GITHUB_OUTPUT"
@@ -66,34 +76,38 @@ jobs:
       matrix:
         i: ${{ fromJSON(needs.razbor.outputs.abzacy) }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
         with:
           python-version: "3.11"
       - run: pip install -q edge-tts==7.3.1 pyyaml==6.0.2
+      # карточка дня с ветки сайта — штатным checkout, а не curl по raw-ссылке (r544 п.6, аудит r530 п.62)
+      - if: inputs.vetka_sajta != ''
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          repository: arabelthera-dot/rc-site
+          ref: ${{ inputs.vetka_sajta }}
+          path: rc-site
+          sparse-checkout: ${{ inputs.put }}
+          sparse-checkout-cone-mode: false
+          persist-credentials: false
       - id: vhod
         env:
           PUT: ${{ inputs.put }}
           VETKA: ${{ inputs.vetka_sajta }}
         run: |
           if [ -n "$VETKA" ]; then
-            curl -fsSL --retry 3 -o /tmp/vhod.yaml "https://raw.githubusercontent.com/arabelthera-dot/rc-site/$VETKA/$PUT"
-            echo "f=/tmp/vhod.yaml" >> "$GITHUB_OUTPUT"
+            test -f "rc-site/$PUT"
+            echo "f=rc-site/$PUT" >> "$GITHUB_OUTPUT"
           else
             test -f "$PUT"
             echo "f=$PUT" >> "$GITHUB_OUTPUT"
           fi
           echo "den=$(basename "$PUT" .yaml)" >> "$GITHUB_OUTPUT"
-      # apt иногда виснет (r277, r283): 3 мин на apt, иначе сборка ffmpeg с GitHub — как в render.yml
-      - run: |
-          if ! sudo timeout 180 sh -c 'apt-get update -qq && apt-get install -y -qq ffmpeg'; then
-            echo "apt завис или упал — беру сборку ffmpeg с GitHub (BtbN/FFmpeg-Builds)"
-            curl -fsSL --retry 3 -o /tmp/ff.tar.xz https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-linux64-gpl.tar.xz
-            sudo tar -xJf /tmp/ff.tar.xz -C /opt && sudo ln -sf /opt/ffmpeg-master-latest-linux64-gpl/bin/ffmpeg /opt/ffmpeg-master-latest-linux64-gpl/bin/ffprobe /usr/local/bin/
-          fi
-          ffmpeg -version | head -1
+      # ffmpeg закреплённой версии, один шаг на весь rc-rolik (r544 п.6): apt вис на 20–36 мин (r277, r283)
+      - uses: ./.github/actions/ffmpeg
       - run: python scripts/audiogid.py abzac '${{ steps.vhod.outputs.f }}' ${{ matrix.i }} "$GOLOS" "$TEMP" out/audiogid
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: abzac-${{ matrix.i }}
           path: out/audiogid/
@@ -105,33 +119,37 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
         with:
           python-version: "3.11"
       - run: pip install -q edge-tts==7.3.1 pyyaml==6.0.2
+      # карточка дня с ветки сайта — штатным checkout, а не curl по raw-ссылке (r544 п.6, аудит r530 п.62)
+      - if: inputs.vetka_sajta != ''
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          repository: arabelthera-dot/rc-site
+          ref: ${{ inputs.vetka_sajta }}
+          path: rc-site
+          sparse-checkout: ${{ inputs.put }}
+          sparse-checkout-cone-mode: false
+          persist-credentials: false
       - id: vhod
         env:
           PUT: ${{ inputs.put }}
           VETKA: ${{ inputs.vetka_sajta }}
         run: |
           if [ -n "$VETKA" ]; then
-            curl -fsSL --retry 3 -o /tmp/vhod.yaml "https://raw.githubusercontent.com/arabelthera-dot/rc-site/$VETKA/$PUT"
-            echo "f=/tmp/vhod.yaml" >> "$GITHUB_OUTPUT"
+            test -f "rc-site/$PUT"
+            echo "f=rc-site/$PUT" >> "$GITHUB_OUTPUT"
           else
             test -f "$PUT"
             echo "f=$PUT" >> "$GITHUB_OUTPUT"
           fi
           echo "den=$(basename "$PUT" .yaml)" >> "$GITHUB_OUTPUT"
-      # apt иногда виснет (r277, r283): 3 мин на apt, иначе сборка ffmpeg с GitHub — как в render.yml
-      - run: |
-          if ! sudo timeout 180 sh -c 'apt-get update -qq && apt-get install -y -qq ffmpeg'; then
-            echo "apt завис или упал — беру сборку ffmpeg с GitHub (BtbN/FFmpeg-Builds)"
-            curl -fsSL --retry 3 -o /tmp/ff.tar.xz https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-linux64-gpl.tar.xz
-            sudo tar -xJf /tmp/ff.tar.xz -C /opt && sudo ln -sf /opt/ffmpeg-master-latest-linux64-gpl/bin/ffmpeg /opt/ffmpeg-master-latest-linux64-gpl/bin/ffprobe /usr/local/bin/
-          fi
-          ffmpeg -version | head -1
-      - uses: actions/download-artifact@v4
+      # ffmpeg закреплённой версии, один шаг на весь rc-rolik (r544 п.6): apt вис на 20–36 мин (r277, r283)
+      - uses: ./.github/actions/ffmpeg
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           pattern: abzac-*
           merge-multiple: true
@@ -139,7 +157,7 @@ jobs:
       - run: |
           python scripts/audiogid.py skleika '${{ steps.vhod.outputs.f }}' "$GOLOS" "$TEMP" out/audiogid '${{ needs.razbor.outputs.den }}'
           python -c "import json,glob;d=json.load(open(glob.glob('out/audiogid/*-*.json')[0]));print('## Аудиогид',d['den'],'—',d['total'],'с');[print('-',a['i'],a['start'],'+',a['dur'],'с, слов',a['slov_golos'],'/',a['slov_tekst']) for a in d['abzacy']]" >> "$GITHUB_STEP_SUMMARY"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: audiogid-${{ needs.razbor.outputs.den }}
           path: out/audiogid/

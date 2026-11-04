@@ -1,6 +1,7 @@
 # Лёгкая проверка заявок (r397, 28.10.2026): без рендера, без озвучки, без секретов — секунды на машине GitHub.
 # Нужна, чтобы слияние шло по правилу «все проверки зелёные». Проверяет:
 # - workflows — actionlint (бинарник закреплён по sha256 выпуска v1.7.12);
+# - общий ffmpeg (.github/actions/ffmpeg) ставится и умеет нужные фильтры;
 # - scripts/*.py — python -m py_compile;
 # - все *.json — разбор python json, все *.yml/*.yaml — разбор yq.
 name: proverka
@@ -18,7 +19,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           persist-credentials: false
       - name: actionlint
@@ -31,6 +32,13 @@ jobs:
           echo "$SHA  /tmp/$f" | sha256sum -c -
           tar -xzf "/tmp/$f" -C /tmp actionlint
           /tmp/actionlint -color
+      # общий ffmpeg (r544 п.6): ставится, и в нём есть фильтры, которые зовут scripts/sfx.py и audiogid.py
+      - uses: ./.github/actions/ffmpeg
+      - name: ffmpeg — нужные фильтры
+        run: |
+          for f in alimiter loudnorm amix apad; do
+            ffmpeg -hide_banner -filters | grep -qw "$f" || { echo "::error::в ffmpeg нет фильтра $f"; exit 1; }
+          done
       - name: python -m py_compile scripts/*.py
         run: python3 -m py_compile scripts/*.py
       - name: JSON
