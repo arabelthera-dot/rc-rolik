@@ -102,6 +102,8 @@ jobs:
     needs: [razbor, abzac]
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -141,3 +143,26 @@ jobs:
         with:
           name: audiogid-${{ needs.razbor.outputs.den }}
           path: out/audiogid/
+      # Выпуск на сайт (r538, Р524): гид сам приходит на сайт заявкой rc-site rolik-na-sait — как ролик в render.yml.
+      # Куда — из самого дня: muzei и audioguide.audioSrc; нет их — выпуска нет. Свой GITHUB_TOKEN, секретов не нужно.
+      - env:
+          GH_TOKEN: ${{ github.token }}
+          F: ${{ steps.vhod.outputs.f }}
+          DEN: ${{ needs.razbor.outputs.den }}
+        run: |
+          cel=$(python -c "import yaml,json,sys;d=yaml.safe_load(open(sys.argv[1]));print(json.dumps({'muzei':d.get('muzei') or '','fajl':(d.get('audioguide') or {}).get('audioSrc') or ''}))" "$F")
+          muzei=$(jq -r .muzei <<<"$cel"); fajl=$(jq -r .fajl <<<"$cel")
+          if ! grep -Eq '^[a-z0-9-]+$' <<<"$muzei" || ! grep -Eq '^[a-z0-9-]+\.mp3$' <<<"$fajl"; then
+            echo "Выпуска на сайт нет: в $DEN нет muzei или audioguide.audioSrc ($cel)." | tee -a "$GITHUB_STEP_SUMMARY"; exit 0
+          fi
+          mkdir rel && cp "out/audiogid/$DEN.mp3" "rel/$fajl"
+          jq -n --arg den "$DEN" --arg run "$GITHUB_RUN_ID" --arg muzei "$muzei" --arg fajl "$fajl" \
+            --argjson sec "$(jq .total "out/audiogid/$DEN.json")" --arg golos "$GOLOS" \
+            '{vid: "audiogid", den: $den, run: ($run|tonumber), muzei: $muzei, fajl: $fajl, sec: $sec, golos: $golos}' > rel/vypusk.json
+          cat rel/vypusk.json
+          tag="vypusk-ag-$muzei-$DEN-$GITHUB_RUN_ID"
+          gh release view "$tag" -R "$GITHUB_REPOSITORY" >/dev/null 2>&1 && { echo "Выпуск $tag уже есть."; exit 0; }
+          gh release create "$tag" rel/* -R "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --latest=false \
+            --title "Аудиогид $muzei $DEN → $fajl" \
+            --notes "Аудиогид $muzei $DEN, голос $GOLOS, прогон $GITHUB_RUN_ID. На сайт придёт заявкой rc-site rolik-na-sait (r538)."
+          echo "Выпуск на сайт: https://github.com/$GITHUB_REPOSITORY/releases/tag/$tag" | tee -a "$GITHUB_STEP_SUMMARY"
