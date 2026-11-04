@@ -3,6 +3,7 @@
   "source_md": "rc-site src/content/dni-shablon/ne-sdayutsya/01-04.yaml; ~/workspace/knowledge/ns-utverzhdeno/ns-01-04.md",
   "voice": "ru-RU-DmitryNeural",
   "rate": "+18%",
+  "sajt": {"muzei": "ne-sdayutsya", "reestr": "nesdayutsya", "imya": "04jan-kozelsk"},
   "segments": [
     {
       "id": "hook",
