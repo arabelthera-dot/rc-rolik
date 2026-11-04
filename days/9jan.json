@@ -35,13 +35,15 @@
    "id": "klochkov",
    "say": "Политрук Клочко́в узнал, что на взвод идут танки, и сам пошёл туда.",
    "image": "klochkov",
-   "fx": "photo"
+   "fx": "photo",
+   "show": "Политрук Клочков узнал, что на взвод идут танки, и сам пошёл туда."
   },
   {
    "id": "natarov",
    "say": "Смертельно раненный Иван Ната́ров успел рассказать о бое. Так страна узнала о подвиге.",
    "image": "natarov",
-   "fx": "photo"
+   "fx": "photo",
+   "show": "Смертельно раненный Иван Натаров успел рассказать о бое. Так страна узнала о подвиге."
   },
   {
    "id": "cta",
@@ -49,15 +51,41 @@
    "show": "Смотри день целиком на russian-civilization.ru",
    "image": null,
    "fx": "endcard",
-   "labels": {"deco": "none"}
+   "labels": {
+    "deco": "none"
+   }
   }
  ],
  "images": {
-  "oblozhka": {"src": "kadry/9jan/gk-17023354.jpg", "parallax": false},
-  "boy": {"src": "kadry/9jan/gk-19345257.jpg", "crop": [0, 0.22, 1, 0.62], "parallax": false},
-  "granaty": {"src": "kadry/9jan/gk-17486577.jpg", "parallax": false},
-  "data": {"src": "kadry/9jan/gk-25397183.jpg", "parallax": false},
-  "klochkov": {"src": "kadry/9jan/gk-5087514.jpg", "parallax": false},
-  "natarov": {"src": "kadry/9jan/gk-27296206.jpg", "parallax": false}
+  "oblozhka": {
+   "src": "kadry/9jan/gk-17023354.jpg",
+   "parallax": false
+  },
+  "boy": {
+   "src": "kadry/9jan/gk-19345257.jpg",
+   "crop": [
+    0,
+    0.22,
+    1,
+    0.62
+   ],
+   "parallax": false
+  },
+  "granaty": {
+   "src": "kadry/9jan/gk-17486577.jpg",
+   "parallax": false
+  },
+  "data": {
+   "src": "kadry/9jan/gk-25397183.jpg",
+   "parallax": false
+  },
+  "klochkov": {
+   "src": "kadry/9jan/gk-5087514.jpg",
+   "parallax": false
+  },
+  "natarov": {
+   "src": "kadry/9jan/gk-27296206.jpg",
+   "parallax": false
+  }
  }
 }
