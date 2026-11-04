@@ -3,7 +3,8 @@
 # - workflows — actionlint (бинарник закреплён по sha256 выпуска v1.7.12);
 # - общий ffmpeg (.github/actions/ffmpeg) ставится и умеет нужные фильтры;
 # - scripts/*.py — python -m py_compile;
-# - все *.json — разбор python json, все *.yml/*.yaml — разбор yq.
+# - все *.json — разбор python json, все *.yml/*.yaml — разбор yq;
+# - замок хука (r544 п.5, Р536): days/ns*.json — первая сцена = хук утверждённой карточки rc-site, кадры свои.
 name: proverka
 on:
   pull_request:
@@ -55,3 +56,5 @@ jobs:
             yq "." "$f" >/dev/null || { echo "::error file=$f::битый YAML"; rc=1; }
           done < <(git ls-files -z '*.yml' '*.yaml')
           exit "$rc"
+      - name: замок хука
+        run: node scripts/zamok-huk.mjs
