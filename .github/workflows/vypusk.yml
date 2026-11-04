@@ -40,7 +40,7 @@ jobs:
           persist-credentials: false
       - id: s
         run: |
-          grep -Eq '^[a-z0-9-]+$' <<<"$DAY" && [ -f "days/$DAY.json" ] || { echo "::error::нет days/$DAY.json"; exit 1; }
+          if ! grep -Eq '^[a-z0-9-]+$' <<<"$DAY" || [ ! -f "days/$DAY.json" ]; then echo "::error::нет days/$DAY.json"; exit 1; fi
           s=$(jq -c '.sajt // empty' "days/$DAY.json")
           if [ -z "$s" ]; then
             echo "Выпуска на сайт нет: в days/$DAY.json нет поля sajt." | tee -a "$GITHUB_STEP_SUMMARY"
