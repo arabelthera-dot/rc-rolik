@@ -1,6 +1,11 @@
 {
  "id": "29jan",
  "source_md": "rc-site src/content/dni-shablon/izobreteniya/01-29.yaml",
+ "sajt": {
+  "muzei": "izobreteniya",
+  "reestr": "izobreteniya",
+  "imya": "29jan-kostovich-rossiya"
+ },
  "voice": "ru-RU-DmitryNeural",
  "rate": "+18%",
  "images": {
