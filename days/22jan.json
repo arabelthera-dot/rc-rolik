@@ -1,12 +1,13 @@
 {
  "id": "22jan",
  "source_md": "rc-site src/data/full-pages/izobreteniya/01-22.html",
+ "sajt": {"muzei": "izobreteniya", "reestr": "izobreteniya", "imya": "22jan-landau"},
  "voice": "ru-RU-DmitryNeural",
  "rate": "+18%",
  "segments": [
   {
    "id": "hook",
-   "say": "Ландау объяснил, почему жидкий гелий сам ползёт вверх по стенке и убегает из сосуда.",
+   "say": "Жидкий гелий сам ползёт вверх по стенке и убегает из сосуда — Ландау объяснил почему, а Нобеля получал в больнице.",
    "image": "doma",
    "fx": "photo"
   },
