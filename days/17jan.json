@@ -1,12 +1,13 @@
 {
  "id": "17jan",
  "source_md": "rc-site src/data/full-pages/izobreteniya/01-17.html",
+ "sajt": {"muzei": "izobreteniya", "reestr": "izobreteniya", "imya": "17jan-zhukovsky"},
  "voice": "ru-RU-DmitryNeural",
  "rate": "+18%",
  "segments": [
   {
    "id": "hook",
-   "say": "Жуковский вывел, откуда берётся подъёмная сила крыла. И авиация из авантюры стала наукой.",
+   "say": "Жуковский первым в мире вывел, откуда берётся подъёмная сила крыла, — и авиация из авантюры стала наукой.",
    "image": "lekciya",
    "fx": "photo"
   },
