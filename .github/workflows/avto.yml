@@ -39,7 +39,11 @@ jobs:
           path: rc-site
           fetch-depth: 0
           filter: blob:none
-          sparse-checkout: src/content/dni-shablon
+          # ролик НС собирается из карточки, yaml и копии утверждённого (scenarij.mjs) — из них же его ключ (avto.py)
+          sparse-checkout: |
+            src/content/dni-shablon
+            src/content/days/ne-sdayutsya
+            src/data/utverzhdeno/ne-sdayutsya
       - name: что запустить
         env:
           DNI: ${{ inputs.dni }}
