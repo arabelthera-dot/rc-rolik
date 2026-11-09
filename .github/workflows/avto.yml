@@ -22,7 +22,7 @@ concurrency:
   cancel-in-progress: false
 jobs:
   avto:
-    if: vars.MEDIA_AVTO != '0'
+    if: (vars.MEDIA_AVTO || '1') != '0'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     env:
