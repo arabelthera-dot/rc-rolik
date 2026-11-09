@@ -64,7 +64,7 @@ for i in $(seq 30); do
   [ -n "$ID" ] && break
 done
 [ -n "$ID" ] || oblako_net "прогон не появился"
-[ -n "$NE_ZHDAT" ] && { echo "прогон $ID: https://github.com/$REPO/actions/runs/$ID — отдан облаку, не жду. На сайт — заявка rolik-na-sait (выпуск vypusk-$DAY-$ID)"; exit 0; }
+[ -n "$NE_ZHDAT" ] && { echo "прогон $ID: https://github.com/$REPO/actions/runs/$ID — отдан облаку, не жду. $([ "$F" = oba ] && echo "На сайт — заявка rolik-na-sait (выпуск vypusk-$DAY-$ID)" || echo "Формат не oba — выпуска на сайт не будет")"; exit 0; }
 echo "прогон $ID: https://github.com/$REPO/actions/runs/$ID — жду"
 gh run watch "$ID" -R "$REPO" --exit-status --interval 30 >/dev/null || { echo "прогон $ID упал: https://github.com/$REPO/actions/runs/$ID"; exit 1; }
 TMP=$(mktemp -d)
