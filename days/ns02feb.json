@@ -3,13 +3,18 @@
   "source_md": "rc-site src/content/days/ne-sdayutsya/02-02.json (hook); src/content/dni-shablon/ne-sdayutsya/02-02.yaml (факты, кадры) — собрано scripts/scenarij.mjs",
   "voice": "ru-RU-DmitryNeural",
   "rate": "+18%",
+  "sajt": {
+    "muzei": "ne-sdayutsya",
+    "reestr": "nesdayutsya",
+    "imya": "02feb-ovcharenko"
+  },
   "segments": [
     {
       "id": "hook",
-      "say": "Ездовой Дмитрий Овчаренко топором и тремя гранатами обратил в бегство 53 немцев у местечка Песец.",
+      "say": "Пятьдесят три немца против одного солдата с топором — бежали немцы",
       "image": "k1",
       "fx": "photo",
-      "show": "Ездовой Дмитрий Овчаренко топором и тремя гранатами обратил в бегство 53 немцев у местечка Песец."
+      "show": "Пятьдесят три немца против одного солдата с топором — бежали немцы"
     },
     {
       "id": "f1",
@@ -121,10 +126,5 @@
         0.689
       ]
     }
-  },
-  "sajt": {
-    "muzei": "ne-sdayutsya",
-    "reestr": "nesdayutsya",
-    "imya": "02feb-ovcharenko"
   }
 }
