@@ -1,15 +1,16 @@
 #!/bin/sh
-# Ролик дня одной строкой: scripts/day.sh <день> [A|B|AB] [16x9|9x16|oba] [--lokalno]
+# Ролик дня одной строкой: scripts/day.sh <день> [A|B|AB] [16x9|9x16|oba] [--lokalno] [--ne-zhdat]
 # Сборка — в облаке rc-rolik (render.yml, Р243): здесь только коммит days/<день>.json, kadry/<день>/
 # (и public/days/<день>/insert.mp4 для B), запуск прогона и скачивание готового в out/ — только для показа.
 # На сайт ролик сам приходит заявкой rc-site rolik-na-sait (r538, Р524): облако выпускает vypusk-<день>-<прогон>,
 # если в days/<день>.json есть поле sajt и собраны оба формата. Из out/ на сайт ничего не носить.
 # Голос, звук, слои и рендер идут на машинах GitHub. --lokalno — старая сборка на нашем сервере, только в крайнем случае.
+# --ne-zhdat (r688, Р686 п.3): отдал прогон в облако и вышел — помощник не ждёт сборку, ролик на сайт приносит rolik-na-sait.
 set -e
 cd "$(dirname "$0")/.."
 REPO=arabelthera-dot/rc-rolik
-LOKALNO=; ARGS=
-for a; do case $a in --lokalno) LOKALNO=1 ;; *) ARGS="$ARGS $a" ;; esac; done
+LOKALNO=; NE_ZHDAT=; ARGS=
+for a; do case $a in --lokalno) LOKALNO=1 ;; --ne-zhdat) NE_ZHDAT=1 ;; *) ARGS="$ARGS $a" ;; esac; done
 set -- $ARGS
 DAY=$1; V=${2:-A}; F=${3:-oba}
 [ -n "$DAY" ] || { echo "запуск: scripts/day.sh <день> [A|B|AB] [16x9|9x16|oba] [--lokalno]"; exit 1; }
@@ -63,6 +64,7 @@ for i in $(seq 30); do
   [ -n "$ID" ] && break
 done
 [ -n "$ID" ] || oblako_net "прогон не появился"
+[ -n "$NE_ZHDAT" ] && { echo "прогон $ID: https://github.com/$REPO/actions/runs/$ID — отдан облаку, не жду. $([ "$F" = oba ] && echo "На сайт — заявка rolik-na-sait (выпуск vypusk-$DAY-$ID)" || echo "Формат не oba — выпуска на сайт не будет")"; exit 0; }
 echo "прогон $ID: https://github.com/$REPO/actions/runs/$ID — жду"
 gh run watch "$ID" -R "$REPO" --exit-status --interval 30 >/dev/null || { echo "прогон $ID упал: https://github.com/$REPO/actions/runs/$ID"; exit 1; }
 TMP=$(mktemp -d)
