@@ -1,0 +1,70 @@
+# Ролик и аудиогид дня — сами при выходе дня (r685, Р685). Раз в полчаса смотрит rc-site main и свои days/:
+# новый или изменённый день → audiogid.yml и render.yml с нужными входами; упавший прогон — gh run rerun --failed
+# до 2 раз с паузой ≥ 25 мин; после 3-го отказа — карточка с одной строкой ошибки. Логика — scripts/avto.py.
+# Ключ не нужен: GITHUB_TOKEN запускает workflow_dispatch в своём репо (rc-site публичный, читается без ключа).
+# Выключатель: переменная репо MEDIA_AVTO=0. Руками: gh workflow run avto.yml -f dni="ne-sdayutsya/02-01 izobreteniya/02-02"
+name: avto
+on:
+  schedule:
+    - cron: '17,47 * * * *'
+  workflow_dispatch:
+    inputs:
+      dni:
+        description: "музей/ММ-ДД через пробел; пусто — дни, изменённые за 3 дня"
+        required: false
+        default: ""
+permissions:
+  actions: write
+  contents: read
+  issues: write
+concurrency:
+  group: avto
+  cancel-in-progress: false
+jobs:
+  avto:
+    if: vars.MEDIA_AVTO != '0'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          filter: blob:none
+      - uses: actions/checkout@v4
+        with:
+          repository: arabelthera-dot/rc-site
+          ref: main
+          path: rc-site
+          fetch-depth: 0
+          filter: blob:none
+          sparse-checkout: src/content/dni-shablon
+      - name: что запустить
+        env:
+          DNI: ${{ inputs.dni }}
+        run: |
+          # shellcheck disable=SC2086
+          python scripts/avto.py rc-site '3 days ago' $DNI > komandy.txt
+          cat komandy.txt
+      - name: запуск, перезапуск, карточки
+        env:
+          AI_TOKEN: ${{ secrets.AI_PROJECTS_TOKEN }}
+        run: |
+          while read -r c; do
+            case "$c" in
+              KARTOCHKA*)
+                id=$(echo "$c" | cut -d' ' -f2); imya=$(echo "$c" | cut -d' ' -f3-)
+                stroka=$(gh run view "$id" -R "$GITHUB_REPOSITORY" --log-failed 2>/dev/null \
+                  | grep -m1 -E 'NoAudioReceived|Error|ошибк|FAIL' | cut -f3- | cut -c1-300)
+                zag="rc-rolik: прогон $id упал 3 раза — $imya"
+                telo="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$id"$'\n\n'"Ошибка: ${stroka:-нет строки с Error в журнале}"
+                # карточка — в AI_Projects, если есть ключ AI_PROJECTS_TOKEN; без него — в этом репо (r685)
+                if [ -n "$AI_TOKEN" ]; then r=arabelthera-dot/AI_Projects; t=$AI_TOKEN; else r=$GITHUB_REPOSITORY; t=$GH_TOKEN; fi
+                if [ -z "$(GH_TOKEN=$t gh issue list -R "$r" --state all --search "\"прогон $id\" in:title" --json number -q '.[].number')" ]; then
+                  GH_TOKEN=$t gh label create agent:arabelthera-dot -R "$r" --color 5319e7 2>/dev/null || true
+                  GH_TOKEN=$t gh issue create -R "$r" --title "$zag" --body "$telo" --label agent:arabelthera-dot
+                fi ;;
+              gh\ *) echo "$c"; eval "$c" || echo "::warning::не запустилось: $c" ;;
+            esac
+          done < komandy.txt
