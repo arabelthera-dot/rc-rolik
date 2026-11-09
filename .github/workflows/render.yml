@@ -9,6 +9,8 @@
 # Заставка из 3D-сцены (r521): gh workflow run render.yml -f zastavka3d=r7 (zadacha не нужна) — снимает
 # zastavka3d/<имя>/ в Playwright+SwiftShader по ручным часам и кодирует ролики; обычная сборка при этом не идёт.
 name: render
+# имя прогона = задание и ключ сценария: avto.yml по нему видит, что этот сценарий уже собирали (r685)
+run-name: render ${{ inputs.zadacha }}${{ inputs.zastavka3d }} ${{ inputs.klyuch }}
 on:
   workflow_dispatch:
     inputs:
@@ -29,6 +31,10 @@ on:
         default: true
       zastavka3d:
         description: "заставка из 3D-сцены: папка в zastavka3d/ (напр. r7); пусто — обычная сборка роликов"
+        required: false
+        default: ""
+      klyuch:
+        description: "ключ сценария (ставит avto.yml), только для имени прогона"
         required: false
         default: ""
 concurrency:
