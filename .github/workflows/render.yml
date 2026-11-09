@@ -8,6 +8,10 @@
 # здесь же — один раз на день; false — берутся готовые слои из public/days/<день>/.
 # Заставка из 3D-сцены (r521): gh workflow run render.yml -f zastavka3d=r7 (zadacha не нужна) — снимает
 # zastavka3d/<имя>/ в Playwright+SwiftShader по ручным часам и кодирует ролики; обычная сборка при этом не идёт.
+# Сценарий НС из карточки (Р699): для дней nsДДмес задание scenarij пересобирает days/<день>.json и kadry/<день>/
+# scripts/scenarij.mjs из rc-site main — озвучка, слои и сборка берут только его, не копию из репо.
+# Отказ scenarij.mjs (нет хука, меньше 40 с) — день красный, старый сценарий не озвучивается.
+# Откат: убрать задание scenarij, его needs и шаги download-artifact scenarij-*.
 name: render
 # имя прогона = задание и ключ сценария: avto.yml по нему видит, что этот сценарий уже собирали (r685)
 run-name: render ${{ inputs.zadacha }}${{ inputs.zastavka3d }} ${{ inputs.klyuch }}
@@ -47,6 +51,7 @@ jobs:
     outputs:
       matrix: ${{ steps.m.outputs.matrix }}
       days: ${{ steps.m.outputs.days }}
+      ns: ${{ steps.m.outputs.ns }}
     steps:
       - id: m
         env:
@@ -55,19 +60,71 @@ jobs:
         run: |
           if [ -z "${ZADACHA// /}" ]; then echo "::error::пустая zadacha"; exit 1; fi
           fmts="16x9 9x16"; [ "$FORMAT" = "oba" ] || fmts="$FORMAT"
-          items=""; days=""
+          items=""; days=""; ns=""
           for z in $ZADACHA; do
             d=${z%%:*}; vs=${z#*:}; [ "$vs" = "$z" ] && vs=A
             case "$days" in *"\"$d\""*) ;; *) days="$days\"$d\",";; esac
+            # дни НС (nsДДмес) — сценарий пересобирается из карточки сайта (задание scenarij)
+            if echo "$d" | grep -Eq '^ns[0-9]{2}[a-z]{3}$'; then
+              case "$ns" in *"\"$d\""*) ;; *) ns="$ns\"$d\",";; esac
+            fi
             for v in $(echo "$vs" | grep -o .); do for f in $fmts; do
               items="$items{\"day\":\"$d\",\"v\":\"$v\",\"f\":\"$f\"},"
             done; done
           done
-          echo "matrix={\"include\":[${items%,}]}" >> "$GITHUB_OUTPUT"
-          echo "days=[${days%,}]" >> "$GITHUB_OUTPUT"
-  ozvuchka:
+          {
+            echo "matrix={\"include\":[${items%,}]}"
+            echo "days=[${days%,}]"
+            echo "ns=[${ns%,}]"
+          } >> "$GITHUB_OUTPUT"
+  # Сценарий НС — из записи дня rc-site main при каждом прогоне (Р699): карточку поменяли после сборки —
+  # ролик всё равно озвучивает её хук. Как в мире: данные ролика — входные props из источника, не копия
+  # (https://www.remotion.dev/docs/passing-props). Отказ — красное задание дня, его артефакта нет,
+  # и озвучка/слои/сборка этого дня падают на download-artifact, остальные дни идут (как r264).
+  scenarij:
     needs: plan
-    if: inputs.ozvuchka
+    if: needs.plan.outputs.ns != '[]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        day: ${{ fromJson(needs.plan.outputs.ns) }}
+    name: scenarij-${{ matrix.day }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+          cache: npm
+      # scenarij.mjs нужен только js-yaml из lock; движок Remotion здесь не ставится (--ignore-scripts)
+      - run: npm ci --ignore-scripts
+      - env:
+          DEN: ${{ matrix.day }}
+        run: |
+          mes=jan,feb,mar,apr,may,jun,jul,aug,sep,oct,nov,dec
+          dd=${DEN:2:2}; m=${DEN:4:3}
+          mm=$(echo "$mes" | tr ',' '\n' | grep -nx "$m" | cut -d: -f1)
+          [ -n "$mm" ] || { echo "::error::$DEN: не понять месяц «$m»"; exit 1; }
+          key=$(printf '%02d-%s' "$mm" "$dd")
+          if ! node scripts/scenarij.mjs "$key"; then
+            echo "::error::$DEN: сценарий не собран из карточки rc-site main src/content/days/ne-sdayutsya/$key.json (причина — строка ✗ выше); старый сценарий не озвучивается, ролика дня нет"
+            exit 1
+          fi
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: scenarij-${{ matrix.day }}
+          path: |
+            days/${{ matrix.day }}.json
+            kadry/${{ matrix.day }}/
+          if-no-files-found: error
+          retention-days: 14
+  ozvuchka:
+    needs: [plan, scenarij]
+    # scenarij пропущен (нет дней НС) — не помеха; упал у одного дня — падает только этот день
+    if: >-
+      always() && inputs.ozvuchka && needs.plan.result == 'success'
+      && needs.scenarij.result != 'cancelled'
     runs-on: ubuntu-latest
     timeout-minutes: 45  # до 10 попыток по ≈5,5 мин на сцену (r264)
     strategy:
@@ -78,6 +135,10 @@ jobs:
     name: ozvuchka-${{ matrix.day }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - if: contains(needs.plan.outputs.ns, format('"{0}"', matrix.day))
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: scenarij-${{ matrix.day }}
       - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
         with:
           python-version: "3.11"
@@ -109,8 +170,10 @@ jobs:
             public/days/${{ matrix.day }}/day.json
           retention-days: 14
   layers:
-    needs: plan
-    if: inputs.sloi
+    needs: [plan, scenarij]
+    if: >-
+      always() && inputs.sloi && needs.plan.result == 'success'
+      && needs.scenarij.result != 'cancelled'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     strategy:
@@ -120,6 +183,10 @@ jobs:
     name: layers-${{ matrix.day }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - if: contains(needs.plan.outputs.ns, format('"{0}"', matrix.day))
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: scenarij-${{ matrix.day }}
       - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
         with:
           python-version: "3.11"
@@ -134,12 +201,13 @@ jobs:
             public/days/${{ matrix.day }}/images.json
           retention-days: 14
   render:
-    needs: [plan, ozvuchka, layers]
+    needs: [plan, scenarij, ozvuchka, layers]
     # озвучка/слои выключены — шаг пропущен (skipped), берётся готовое из репо.
     # Упали у одного дня — остальные дни собираются: у дня без голоса/слоёв нет артефакта,
     # download-artifact падает, и падает только его сборка (старый голос из репо не берётся) (r264)
     if: >-
       always() && needs.plan.result == 'success'
+      && needs.scenarij.result != 'cancelled'
       && needs.ozvuchka.result != 'cancelled' && needs.layers.result != 'cancelled'
     runs-on: ubuntu-latest
     timeout-minutes: 60
@@ -149,6 +217,10 @@ jobs:
     name: ${{ matrix.day }}-${{ matrix.v }}-${{ matrix.f }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - if: contains(needs.plan.outputs.ns, format('"{0}"', matrix.day))
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: scenarij-${{ matrix.day }}
       - if: inputs.ozvuchka
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:

@@ -1,8 +1,13 @@
 {
   "id": "ns01feb",
-  "source_md": "rc-site src/content/days/ne-sdayutsya/02-01.json (hook); src/content/dni-shablon/ne-sdayutsya/02-01.yaml (факты, кадры) — собрано scripts/scenarij.mjs",
+  "source_md": "rc-site src/content/days/ne-sdayutsya/02-01.json (hook); src/content/dni-shablon/ne-sdayutsya/02-01.yaml (факты, кадры); src/data/utverzhdeno/ne-sdayutsya/02-01.json (текст и порядок фактов) — собрано scripts/scenarij.mjs",
   "voice": "ru-RU-DmitryNeural",
   "rate": "+18%",
+  "sajt": {
+    "muzei": "ne-sdayutsya",
+    "reestr": "nesdayutsya",
+    "imya": "01feb-peresvet"
+  },
   "segments": [
     {
       "id": "hook",
@@ -13,8 +18,8 @@
     },
     {
       "id": "f1",
-      "say": "Монах вышел без доспеха, в одной схиме — против богатыря «пяти сажен высота его»",
-      "show": "Монах вышел без доспеха, в одной схиме — против богатыря «пяти сажен высота его»",
+      "say": "Войско нарочно перешло Дон — чтобы ни у кого не было и мысли об отступлении.",
+      "show": "Войско нарочно перешло Дон — чтобы ни у кого не было и мысли об отступлении.",
       "fx": "photo",
       "image": "k2"
     },
@@ -117,10 +122,5 @@
         0.799
       ]
     }
-  },
-  "sajt": {
-    "muzei": "ne-sdayutsya",
-    "reestr": "nesdayutsya",
-    "imya": "01feb-peresvet"
   }
 }

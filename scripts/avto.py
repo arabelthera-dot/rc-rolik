@@ -3,7 +3,9 @@
 1) день сайта (rc-site main, src/content/dni-shablon/<музей>/ММ-ДД.yaml), изменённый за окно, с audioguide.transcript
    и audioSrc — audiogid.yml; ключ = sha1 текста гида. Прогон с таким именем уже был — второй раз не запускается.
 2) сценарий ролика days/<id>.json (id: изобретения 02feb, НС ns02feb) с полем sajt — render.yml; ключ = sha1 файла.
-   Источник — день сайта из п.1 или свой days/*.json, изменённый за окно.
+   У НС сценарий собирает в облаке scripts/scenarij.mjs (r699), поэтому ключ — sha1 того, из чего он собран:
+   карточка src/content/days/ne-sdayutsya/ММ-ДД.json + yaml страницы + копия src/data/utverzhdeno/ne-sdayutsya/ММ-ДД.json (если есть).
+   Источник — день сайта из п.1 (и для НС — изменённые за окно карточка или копия утверждённого) или свой days/*.json.
 3) упавший прогон audiogid/render с ключом: попытка 1–2 — gh run rerun --failed (пауза — до следующего опроса, ≥ 25 мин);
    после 3-й — карточка с первой строкой ошибки (печатает строку KARTOCHKA <run> <текст>).
 Запуск: python scripts/avto.py <папка rc-site> <окно, напр. '3 days ago'> [<музей/ММ-ДД> …]"""
@@ -26,6 +28,14 @@ def runs(wf):
 def kluch(b):
     return hashlib.sha1(b).hexdigest()[:10]
 
+# ключ ролика НС: изменилось любое из того, из чего scenarij.mjs собирает сценарий, — новый прогон
+def kluch_ns(site, i):
+    key = f"{MES.index(i[4:]) + 1:02d}-{i[2:4]}"
+    chasti = [site / "src/content/days/ne-sdayutsya" / f"{key}.json",
+              site / "src/content/dni-shablon/ne-sdayutsya" / f"{key}.yaml",
+              site / "src/data/utverzhdeno/ne-sdayutsya" / f"{key}.json"]
+    return kluch(b"".join(str(p.relative_to(site)).encode() + b"\0" + p.read_bytes() for p in chasti if p.is_file()))
+
 def rid(muzei, key):
     mm, dd = key.split("-")
     return ("ns" if muzei == "ne-sdayutsya" else "") + dd + MES[int(mm) - 1]
@@ -33,8 +43,10 @@ def rid(muzei, key):
 def main(site, okno, dni):
     site = pathlib.Path(site)
     if not dni:
-        f = sh("git", "log", f"--since={okno}", "--name-only", "--format=", "--", "src/content/dni-shablon/", cwd=site)
-        dni = sorted({m.group(1) for m in re.finditer(r"src/content/dni-shablon/([a-z-]+/\d\d-\d\d)\.yaml", f)})
+        f = sh("git", "log", f"--since={okno}", "--name-only", "--format=", "--", "src/content/dni-shablon/",
+               "src/content/days/ne-sdayutsya/", "src/data/utverzhdeno/ne-sdayutsya/", cwd=site)
+        dni = sorted({m.group(1) for m in re.finditer(r"src/content/dni-shablon/([a-z-]+/\d\d-\d\d)\.yaml", f)}
+                     | {f"ne-sdayutsya/{m.group(1)}" for m in re.finditer(r"src/(?:content/days|data/utverzhdeno)/ne-sdayutsya/(\d\d-\d\d)\.json", f)})
         f = sh("git", "log", f"--since={okno}", "--name-only", "--format=", "--", "days/", cwd=ROOT)
         svoi = sorted({m.group(1) for m in re.finditer(r"days/([a-z0-9]+)\.json", f)})
     else:
@@ -63,7 +75,7 @@ def main(site, okno, dni):
         sj = json.loads(p.read_text()).get("sajt")
         if not sj:
             print(f"# {i}: в days/{i}.json нет sajt — ролик на сайт не идёт", file=sys.stderr); continue
-        z, k = f"{i}:{sj.get('variant', 'A')}", kluch(p.read_bytes())
+        z, k = f"{i}:{sj.get('variant', 'A')}", kluch_ns(site, i) if i.startswith("ns") else kluch(p.read_bytes())
         if f"render {z} {k}" not in imena:
             novye_rn.append(f"gh workflow run render.yml -R {REPO} -f zadacha={z} -f klyuch={k}")
     for c in novye_ag[:MAKS] + novye_rn[:MAKS]:
