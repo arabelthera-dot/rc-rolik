@@ -72,9 +72,11 @@ jobs:
               items="$items{\"day\":\"$d\",\"v\":\"$v\",\"f\":\"$f\"},"
             done; done
           done
-          echo "matrix={\"include\":[${items%,}]}" >> "$GITHUB_OUTPUT"
-          echo "days=[${days%,}]" >> "$GITHUB_OUTPUT"
-          echo "ns=[${ns%,}]" >> "$GITHUB_OUTPUT"
+          {
+            echo "matrix={\"include\":[${items%,}]}"
+            echo "days=[${days%,}]"
+            echo "ns=[${ns%,}]"
+          } >> "$GITHUB_OUTPUT"
   # Сценарий НС — из записи дня rc-site main при каждом прогоне (Р699): карточку поменяли после сборки —
   # ролик всё равно озвучивает её хук. Как в мире: данные ролика — входные props из источника, не копия
   # (https://www.remotion.dev/docs/passing-props). Отказ — красное задание дня, его артефакта нет,
