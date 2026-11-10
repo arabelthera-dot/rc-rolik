@@ -327,6 +327,11 @@ jobs:
         uses: ./.github/actions/ffmpeg
       - if: inputs.sloi_zvuka && matrix.f == '16x9'
         run: python scripts/sloi_zvuka.py "${{ matrix.day }}" "out/${{ matrix.day }}-${{ matrix.v }}-${{ matrix.f }}" ${{ inputs.whisper && '--whisper' || '' }}
+      # приёмка ролика (Р715, п.62) — подсказка в сводку прогона: звук, тишина, громкость, длина, субтитры, чёрные кадры.
+      # Не проверка (Р627): выход всегда 0, continue-on-error, выпуск не ждёт. Ролик из кэша уже принимался — пропуск.
+      - if: steps.kesh.outputs.cache-hit != 'true'
+        continue-on-error: true
+        run: python3 scripts/priemka.py out/*.mp4
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: ${{ matrix.day }}-${{ matrix.v }}-${{ matrix.f }}
