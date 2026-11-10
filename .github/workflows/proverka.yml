@@ -34,6 +34,12 @@ jobs:
           echo "$SHA  /tmp/$f" | sha256sum -c -
           tar -xzf "/tmp/$f" -C /tmp actionlint
           /tmp/actionlint -color
+      # zizmor и gitleaks (п.502 плана, Р745, 10.11.2026): опасные места процессов и ключи в коммитах.
+      # Как в мире — https://docs.zizmor.sh/usage/#use-in-github-actions, https://github.com/gitleaks/gitleaks#docker.
+      - name: zizmor — процессы без опасных мест
+        run: pipx run zizmor==1.32.0 --offline --min-severity high .github/workflows
+      - name: gitleaks — ключей в рабочей копии нет
+        run: docker run --rm -v "$PWD:/repo" ghcr.io/gitleaks/gitleaks:v8.30.1 dir /repo --redact --no-banner
       # общий ffmpeg (r544 п.6): ставится, и в нём есть фильтры, которые зовут scripts/sfx.py и audiogid.py
       - uses: ./.github/actions/ffmpeg
       - name: ffmpeg — нужные фильтры

@@ -37,6 +37,9 @@ env:
   GOLOS: ${{ inputs.golos || 'ru-RU-DmitryNeural' }}
   TEMP: ${{ inputs.temp || '+18%' }}
   AUDIO_PAUZY: ${{ inputs.pauzy || '0' }}
+# Права по умолчанию — только чтение (п.502, Р745); запись — у задания выпуска.
+permissions:
+  contents: read
 jobs:
   razbor:
     runs-on: ubuntu-latest
