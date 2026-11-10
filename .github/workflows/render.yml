@@ -12,6 +12,9 @@
 # scripts/scenarij.mjs из rc-site main — озвучка, слои и сборка берут только его, не копию из репо.
 # Отказ scenarij.mjs (нет хука, меньше 40 с) — день красный, старый сценарий не озвучивается.
 # Откат: убрать задание scenarij, его needs и шаги download-artifact scenarij-*.
+# Кэш готового ролика (r713 п.60): -f kesh=true — отпечаток sha256 входов ролика (scripts/otpechatok.sh: день, кадры,
+# голос, слои, шрифты, шаблон src/, render.mjs, lock, вариант, формат); тот же отпечаток уже собран — ролик из
+# actions/cache, Remotion не запускается. По умолчанию false — сборка как раньше. Откат: убрать вход kesh и шаги kesh.
 name: render
 # имя прогона = задание и ключ сценария: avto.yml по нему видит, что этот сценарий уже собирали (r685)
 run-name: render ${{ inputs.zadacha }}${{ inputs.zastavka3d }} ${{ inputs.klyuch }}
@@ -41,6 +44,10 @@ on:
         description: "ключ сценария (ставит avto.yml), только для имени прогона"
         required: false
         default: ""
+      kesh:
+        description: "не пересобирать ролик, если такой же (тот же отпечаток входов) уже собран (r713)"
+        type: boolean
+        default: false
 concurrency:
   group: render-${{ github.run_id }}
 jobs:
@@ -231,22 +238,53 @@ jobs:
         with:
           name: layers-${{ matrix.day }}
           path: public/days/${{ matrix.day }}
-      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+      # кэш по содержимому (r713 п.60), как ключ actions/cache от hashFiles: входы те же — ролик тот же
+      - id: otp
+        if: inputs.kesh
+        run: echo "sha=$(sh scripts/otpechatok.sh "${{ matrix.day }}" "${{ matrix.v }}" "${{ matrix.f }}")" >> "$GITHUB_OUTPUT"
+      - id: kesh
+        if: inputs.kesh
+        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: |
+            out/*.mp4
+            out/*-poster.jpg
+            out/*.sec
+          key: rolik-${{ matrix.day }}-${{ matrix.v }}-${{ matrix.f }}-${{ steps.otp.outputs.sha }}
+      - if: steps.kesh.outputs.cache-hit == 'true'
+        run: |
+          echo "::notice::${{ matrix.day }}-${{ matrix.v }}-${{ matrix.f }}: входы не менялись (отпечаток ${{ steps.otp.outputs.sha }}) — ролик из кэша, без пересборки"
+      - if: steps.kesh.outputs.cache-hit != 'true'
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: 22
           cache: npm
       # ffmpeg закреплённой версии, один шаг на весь rc-rolik (r544 п.6): apt вис на 20–36 мин (r277, r283)
-      - uses: ./.github/actions/ffmpeg
-      - run: npm ci
-      - run: node scripts/render.mjs "${{ matrix.day }}" "${{ matrix.v }}" "${{ matrix.f }}"
+      - if: steps.kesh.outputs.cache-hit != 'true'
+        uses: ./.github/actions/ffmpeg
+      - if: steps.kesh.outputs.cache-hit != 'true'
+        run: npm ci
+      - if: steps.kesh.outputs.cache-hit != 'true'
+        run: node scripts/render.mjs "${{ matrix.day }}" "${{ matrix.v }}" "${{ matrix.f }}"
       # одна проверка формата (r544 п.6, аудит r530 п.65): кадр 16:9/9:16, длительность, звук, размер; брак — красное задание, выпуска нет.
       # Она же пишет <ролик>.sec — длительность для выпуска на сайт; больше ролик никто не перемеряет.
-      - run: node scripts/format.mjs out/*.mp4
+      - if: steps.kesh.outputs.cache-hit != 'true'
+        run: node scripts/format.mjs out/*.mp4
       # обложка (кадр 1 с) — здесь, где есть ffmpeg: выпуск на сайт её только переименовывает (r538)
-      - run: |
+      - if: steps.kesh.outputs.cache-hit != 'true'
+        run: |
           for f in out/*.mp4; do
             ffmpeg -v error -y -ss 1 -i "$f" -frames:v 1 -q:v 3 "${f%.mp4}-poster.jpg"
           done
+      # собранный и проверенный формой ролик — в кэш под его отпечатком
+      - if: inputs.kesh && steps.kesh.outputs.cache-hit != 'true'
+        uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: |
+            out/*.mp4
+            out/*-poster.jpg
+            out/*.sec
+          key: rolik-${{ matrix.day }}-${{ matrix.v }}-${{ matrix.f }}-${{ steps.otp.outputs.sha }}
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: ${{ matrix.day }}-${{ matrix.v }}-${{ matrix.f }}
