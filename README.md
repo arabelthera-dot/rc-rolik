@@ -35,6 +35,7 @@ export PLAYWRIGHT_SKIP_VALIDATE_HOST_REQUIREMENTS=1 LD_LIBRARY_PATH=$HOME/opt/li
 PY=~/.venvs/agent/bin/python
 $PY scripts/tts.py 05jan     # голос edge-tts ru-RU-DmitryNeural +18%, слова WordBoundary -> timeline.json
 $PY scripts/layers.py 05jan  # 2.5D: подлинные кадры -> фон + передний план (band / GrabCut)
+$PY scripts/sloi_zvuka.py 05jan out/05jan-A-16x9 [--whisper]  # слои звука рядом с роликом: -golos.mp3, -shum.mp3, .srt/.vtt; без слов edge-tts — whisper (r713 п.65, п.66)
 $PY scripts/sfx.py 05jan     # звуковые акценты + сведение -> mix.mp3
 # только для варианта Б: кадрирование правее решётчатой вышки и до 5,0 с (без качалок XX в.), растяжка до длины хука
 ffmpeg -y -t 5.0 -i genosai/insert-raw.mp4 -vf "crop=1100:619:820:360,setpts=1.12*PTS,scale=1920:1080:flags=lanczos,fps=30" -an -c:v libx264 -crf 18 -pix_fmt yuv420p public/days/05jan/insert.mp4
