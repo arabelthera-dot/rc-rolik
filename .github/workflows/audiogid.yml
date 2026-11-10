@@ -7,6 +7,8 @@
 # Текст из этого репо:   gh workflow run audiogid.yml -f put=audiogid/01-20.yaml
 # Текст со страницы сайта: gh workflow run audiogid.yml -f vetka_sajta=main -f put=src/content/dni-shablon/izobreteniya/01-17.yaml
 name: audiogid
+# имя прогона = путь и ключ текста: avto.yml по нему видит, что этот текст уже озвучивали (r685)
+run-name: audiogid ${{ inputs.put }} ${{ inputs.klyuch }}
 on:
   workflow_dispatch:
     inputs:
@@ -22,6 +24,9 @@ on:
       temp:
         description: "скорость edge-tts"
         default: "+18%"
+      klyuch:
+        description: "ключ текста (ставит avto.yml), только для имени прогона"
+        default: ""
 concurrency:
   group: audiogid  # прогоны по одному (r260)
   cancel-in-progress: false
@@ -164,7 +169,7 @@ jobs:
           path: out/audiogid/
       - run: |
           python scripts/audiogid.py skleika '${{ steps.vhod.outputs.f }}' "$GOLOS" "$TEMP" out/audiogid '${{ needs.razbor.outputs.den }}'
-          python -c "import json,glob;d=json.load(open(glob.glob('out/audiogid/*-*.json')[0]));print('## Аудиогид',d['den'],'—',d['total'],'с');[print('-',a['i'],a['start'],'+',a['dur'],'с, слов',a['slov_golos'],'/',a['slov_tekst']) for a in d['abzacy']]" >> "$GITHUB_STEP_SUMMARY"
+          python -c "import json,glob;d=json.load(open(glob.glob('out/audiogid/*-*.json')[0]));print('## Аудиогид',d['den'],'—',d['total'],'с');[print('-',a['i'],a['start'],'+',a['dur'],'с, слов',a['slov_golos'],'/',a['slov_tekst'],'БЕЗ знаков ударения' if a.get('bez_udarenij') else '') for a in d['abzacy']]" >> "$GITHUB_STEP_SUMMARY"
       # одна проверка формата (r544 п.6, аудит r530 п.65): одна дорожка mp3, 30 с – 30 мин, ≤ 20 МБ; брак — выпуска нет
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:

@@ -6,6 +6,7 @@ import yaml
 from tts import synth, udar, dur, TRIES
 
 GAP = 0.6  # пауза между абзацами, с
+BEZ_UDAR = 3  # из TRIES попыток — последние без знаков ударения (r685)
 
 def abzacy(path):
     d = yaml.safe_load(pathlib.Path(path).read_text())
@@ -22,9 +23,13 @@ def abzac(path, i, voice, rate, outdir):
     i = int(i); s = txt[i]
     out = pathlib.Path(outdir); out.mkdir(parents=True, exist_ok=True)
     mp3 = out / f"p{i}.mp3"
+    bez = False
     for k in range(TRIES):  # повтор с растущей паузой, как в tts.py (r260, r264)
+        # знак ударения U+0301 из udareniya.json служба иногда не берёт: ns-02-01 абзац 4 — 0 из 6 со знаками, 5 из 6 без (r685);
+        # последние BEZ_UDAR попыток — без знаков, гид не застревает; в p<i>.json и сводке — bez_udarenij
+        bez = k >= TRIES - BEZ_UDAR
         try:
-            words = asyncio.run(synth(udar(s), voice, rate, mp3))
+            words = asyncio.run(synth(s if bez else udar(s), voice, rate, mp3))
             if not words or mp3.stat().st_size < 1000: raise RuntimeError("пустой ответ")
             break
         except Exception as e:
@@ -35,8 +40,8 @@ def abzac(path, i, voice, rate, outdir):
     # все ли фразы озвучены: число слов от службы против слов в тексте
     src = len([w for w in s.split() if re.search(r"\w", w)])
     d = dur(mp3)
-    (out / f"p{i}.json").write_text(json.dumps({"i": i, "dur": round(d, 2), "slov_tekst": src, "slov_golos": len(words)}))
-    print(f"  абзац {i}: {d:5.1f} с, слов {len(words)}/{src}", flush=True)
+    (out / f"p{i}.json").write_text(json.dumps({"i": i, "dur": round(d, 2), "slov_tekst": src, "slov_golos": len(words), "bez_udarenij": bez}))
+    print(f"  абзац {i}: {d:5.1f} с, слов {len(words)}/{src}" + (" — БЕЗ знаков ударения" if bez else ""), flush=True)
 
 def skleika(path, voice, rate, outdir, den=""):
     """p*.mp3 всех абзацев -> <den>.mp3 + <den>.json (начало и длительность абзацев)."""
@@ -46,7 +51,7 @@ def skleika(path, voice, rate, outdir, den=""):
     parts, segs, t = [], [], 0.0
     for i in range(len(txt)):
         m = json.loads((out / f"p{i}.json").read_text())
-        segs.append({"i": i, "start": round(t, 2), **{k: m[k] for k in ("dur", "slov_tekst", "slov_golos")}})
+        segs.append({"i": i, "start": round(t, 2), **{k: m[k] for k in ("dur", "slov_tekst", "slov_golos")}, "bez_udarenij": m.get("bez_udarenij", False)})
         parts.append(out / f"p{i}.mp3"); t += m["dur"] + GAP
     lst = out / "list.txt"
     sil = out / "gap.mp3"

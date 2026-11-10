@@ -2,7 +2,10 @@
 // Как в мире: данные ролика — входные props из записи дня, не вторая копия руками (https://www.remotion.dev/docs/passing-props).
 // Источник — только rc-site (ветка main или своя копия RC_SITE=<путь>):
 //   src/content/days/ne-sdayutsya/ММ-ДД.json — хук карточки, дословно первой сценой (замок scripts/zamok-huk.mjs);
-//   src/content/dni-shablon/ne-sdayutsya/ММ-ДД.yaml — утверждённые факты страницы (fakty[].udary: summary + kadr) и обложка;
+//   src/content/dni-shablon/ne-sdayutsya/ММ-ДД.yaml — факты страницы (fakty[].udary: n + kadr) и обложка;
+//   src/data/utverzhdeno/ne-sdayutsya/ММ-ДД.json — копия утверждённого: текст фактов (zagolovok) и порядок (poryadok), как у сайта —
+//   правило сопоставления факта yaml (n) с копией берётся модулем сайта src/lib/fakty-iz-utverzhdeno.mjs, своего нет (Р686 п.1);
+//   нет копии — прежний путь, summary из yaml; RC_FAKTY_IZ_UTVERZHDENO=0 — текст yaml главнее, как на сайте;
 //   их кадры public/muzei/ne-sdayutsya/img/… копируются в kadry/<день>/ — других кадров в ролике нет.
 // Сцены: hook (обложка) → факты по порядку страницы (каждый на кадре страницы), пока ролик укладывается в 40–60 с, последний кончается
 // «Русские не сдаются.» → cta. Ударения ставит scripts/tts.py по udareniya.json и словарю имён сайта; числа в say читает голос.
@@ -11,6 +14,8 @@
 // Откат: удалить файл; days/*.json, собранные им, остаются обычными сценариями.
 import fs from 'node:fs';
 import path from 'node:path';
+import os from 'node:os';
+import { pathToFileURL } from 'node:url';
 import yaml from 'js-yaml';
 import { kartochka, zamokDnya, norm } from './zamok-huk.mjs';
 
@@ -44,6 +49,27 @@ async function sajt(rel, kak = 'text') {
   return kak === 'text' ? r.text() : Buffer.from(await r.arrayBuffer());
 }
 
+// Факты yaml с текстом и порядком утверждённого — функцией сайта faktyIzUtverzhdeno (src/lib/fakty-iz-utverzhdeno.mjs).
+// С RC_SITE модуль и копия читаются из неё; без — скачиваются из main во временный корень, модулю нужен только node:fs.
+async function izUtverzhdeno(st, key) {
+  const MOD = 'src/lib/fakty-iz-utverzhdeno.mjs', UTV = `src/data/utverzhdeno/ne-sdayutsya/${key}.json`;
+  let koren = process.env.RC_SITE;
+  if (!koren) {
+    const [mod, utv] = await Promise.all([sajt(MOD), sajt(UTV)]);
+    if (!mod) throw new Error(`rc-site ${MOD}: нет модуля`);
+    koren = fs.mkdtempSync(path.join(os.tmpdir(), 'scenarij-'));
+    for (const [rel, t] of [[MOD, mod], [UTV, utv]].filter(([, t]) => t != null)) {
+      fs.mkdirSync(path.dirname(path.join(koren, rel)), { recursive: true });
+      fs.writeFileSync(path.join(koren, rel), t);
+    }
+  }
+  const { faktyIzUtverzhdeno } = await import(pathToFileURL(path.join(koren, MOD)).href);
+  const iz = fs.existsSync(path.join(koren, UTV));
+  const r = faktyIzUtverzhdeno(st, 'ne-sdayutsya', key, koren);
+  if (!process.env.RC_SITE) fs.rmSync(koren, { recursive: true, force: true });
+  return { ...r, iz };
+}
+
 const chistyj = (s) => String(s ?? '').replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim().replace(/([^.!?…»])$/, '$1.');
 const sek = (segs) => segs.reduce((n, s) => n + s.say.length, 0) / ZNAKOV_V_SEK;
 
@@ -66,7 +92,9 @@ async function denOdin(key) {
   if (!k?.hook) return { id, key, otkaz: `нет хука в карточке src/content/days/ne-sdayutsya/${key}.json` };
   const yt = await sajt(`src/content/dni-shablon/ne-sdayutsya/${key}.yaml`);
   if (!yt) return { id, key, otkaz: `нет страницы src/content/dni-shablon/ne-sdayutsya/${key}.yaml` };
-  const st = yaml.load(yt);
+  const utv = await izUtverzhdeno(yaml.load(yt), key);
+  if (utv.oshibki.length) return { id, key, otkaz: utv.oshibki.join('; ') };
+  const st = utv.syroe;
   if (!st.oblozhka?.src) return { id, key, otkaz: 'нет обложки страницы (oblozhka.src) для сцены хука' };
 
   const kadry = new Map(); // src сайта → имя кадра в сценарии
@@ -106,7 +134,7 @@ async function denOdin(key) {
   const imya = slug ? `${dd}${MES[+mm - 1]}-${slug}` : staryj?.sajt?.imya;
   const cfg = {
     id,
-    source_md: `rc-site src/content/days/ne-sdayutsya/${key}.json (hook); src/content/dni-shablon/ne-sdayutsya/${key}.yaml (факты, кадры) — собрано scripts/scenarij.mjs`,
+    source_md: `rc-site src/content/days/ne-sdayutsya/${key}.json (hook); src/content/dni-shablon/ne-sdayutsya/${key}.yaml (факты, кадры)${utv.iz ? `; src/data/utverzhdeno/ne-sdayutsya/${key}.json (текст и порядок фактов)` : ''} — собрано scripts/scenarij.mjs`,
     voice: 'ru-RU-DmitryNeural',
     rate: '+18%',
     ...(imya ? { sajt: { muzei: 'ne-sdayutsya', reestr: 'nesdayutsya', imya } } : {}),
