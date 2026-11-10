@@ -1,6 +1,7 @@
 """Озвучка дня: days/<id>.json -> public/days/<id>/voice.mp3 + timeline.json; слова с временами — voice.words.json, voice.srt, voice.vtt."""
 import asyncio, json, sys, re, subprocess, pathlib, random, time, hashlib
 import edge_tts
+import zapasnoj_golos  # п.92: запасной Piper, выключен без ZAPASNOJ_GOLOS=piper
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 GAP = 0.35  # пауза между сегментами, с
@@ -78,12 +79,12 @@ def main(day):
         text = udar(s["say"])
         key = hashlib.sha1(json.dumps([text, cfg["voice"], cfg["rate"]], ensure_ascii=False).encode()).hexdigest()
         old = json.loads(meta.read_text()) if meta.exists() else {}
-        if mp3.exists() and old.get("key") == key and not pustoj(mp3, old["words"]):  # сцена уже озвучена тем же текстом — при перезапуске не переозвучиваем (r264)
+        if mp3.exists() and old.get("key") == key and not old.get("zapasnoj") and not pustoj(mp3, old["words"]):  # сцена уже озвучена тем же текстом — при перезапуске не переозвучиваем (r264)
             words = old["words"]
             print(f"  {s['id']}: готова, не переозвучиваю", flush=True)
         else:
             meta.unlink(missing_ok=True)
-            pusto = 0
+            pusto, zap = 0, False
             for k in range(TRIES):  # повтор с растущей паузой 3, 6, 12, 24, 48, 60… с (r260, r264)
                 bez = k >= TRIES - BEZ_UDAR or pusto > 0  # после пустого ответа — без знаков ударения
                 try:
@@ -92,17 +93,23 @@ def main(day):
                     if not why: break
                     pusto += 1
                     if pusto >= PUSTO:
+                        if zapasnoj_golos.vklyuchen(): zap = True; break
                         sys.exit(f"{day}: сцена {s['id']} — голос пустой {PUSTO} раза подряд ({why}), озвучка дня остановлена")
                     e = RuntimeError(why)
                 except Exception as e1:
                     e = e1
                     if k == TRIES - 1:
+                        if zapasnoj_golos.vklyuchen(): zap = True; break
                         sys.exit(f"{day}: сцена {s['id']} — голос не получен за {TRIES} попыток: {type(e).__name__} {e}")
                 p = min(3 * 2 ** k, 60) + random.uniform(0, 3)
                 print(f"  {s['id']}: попытка {k + 1} из {TRIES} — {type(e).__name__} {e}, жду {p:.0f} с", flush=True)
                 time.sleep(p)
+            if zap:  # edge-tts не ответил — Piper; при следующем прогоне сцена снова пойдёт в edge-tts
+                words = zapasnoj_golos.ozvuchit(text, cfg["rate"], mp3); bez = False
+                if pustoj(mp3, words): sys.exit(f"{day}: сцена {s['id']} — и запасной голос пустой ({pustoj(mp3, words)})")
+                print(f"  {s['id']}: озвучена ЗАПАСНЫМ голосом Piper {zapasnoj_golos.GOLOS}", flush=True)
             if bez: print(f"  {s['id']}: озвучена БЕЗ знаков ударения", flush=True)
-            meta.write_text(json.dumps({"key": key, "words": words, "bez_udarenij": bez}, ensure_ascii=False))
+            meta.write_text(json.dumps({"key": key, "words": words, "bez_udarenij": bez, **({"zapasnoj": zapasnoj_golos.GOLOS} if zap else {})}, ensure_ascii=False))
         d = dur(mp3)
         # подписи: если задан "show" — показываем его слова, разложив по времени озвученных слов
         show = s.get("show")
