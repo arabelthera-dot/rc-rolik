@@ -43,6 +43,7 @@ node scripts/render.mjs 05jan AB   # -> out/05jan-A-16x9.mp4, -A-9x16, -B-16x9, 
 Chromium: `~/.cache/ms-playwright/chromium_headless_shell-1234/.../chrome-headless-shell` (переопределить — `CHROME=`), `--gl=swangle`.
 Быстрый кадр: `npx remotion still src/index.ts Day9x16 f.jpg --frame=30 --props='{"day":"05jan","variant":"A"}' --browser-executable=$CHROME --gl=swangle`.
 
+Раскадровка дня изобретений машиной из полей сайта (карточка hook, yaml: обложка, кадры фактов, figures; текст фактов — утверждённое): `node scripts/scenarij.mjs 02-02 --muzej=izobreteniya --v=<папка>` — пишет `<папка>/days/02feb.json` и `<папка>/kadry/02feb/`; готовый `days/<день>.json` перезаписывается только с `--zamenit`; не хватает поля — пишет, какого. Подписи (labels), plate/years и say словами — по-прежнему руками.
 Новый день: скопировать `days/05jan.json`, вписать `segments` (say — что говорит голос, show — как писать в субтитрах цифрами; image; fx: pipe-sweep | dust | formulas | pipeline-map | tower-mesh | endcard) и `images` (src из pilot-izobreteniya, `band` — где начинается передний план, или `fg_rect` для GrabCut; `"parallax": false` — без переднего плана, если полоса даёт шов). Факты — только из md дня.
 
 ## Музыка и звук — лицензия
