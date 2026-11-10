@@ -1,7 +1,7 @@
 # Ролики «Русской цивилизации» — сборка на машинах GitHub
 
 Шаблон ролика дня на Remotion. Всё собирается здесь, сценарий `.github/workflows/render.yml`: слои кадров
-(`scripts/layers.py`, подлинные кадры из `kadry/<день>/`), голос (`scripts/tts.py`, словарь `udareniya.json`) и звук
+(`scripts/layers.py`, подлинные кадры из `kadry/<день>/`), голос (`scripts/tts.py`, словарь `udareniya.json`, имена — из словаря сайта `rc-site/src/data/spravochniki/udareniya.json`) и звук
 (`scripts/sfx.py`) — один раз на день, каждый файл ролика — на своей машине.
 Поправили словарь или сценарий — достаточно коммита и запуска; `-f ozvuchka=false` / `-f sloi=false` — взять готовую озвучку / слои из репо.
 

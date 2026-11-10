@@ -18,12 +18,27 @@ async def synth(text, voice, rate, mp3):
                 words.append({"t": ch["offset"] / 1e7, "d": ch["duration"] / 1e7, "w": ch["text"].replace("\u0301", "")})
     return words
 
-UDAR = {k: v for k, v in json.loads((ROOT / "udareniya.json").read_text()).items() if k != "_"}
+# Ударения: простые слова — udareniya.json здесь; имена и названия — один словарь сайта для всех роликов (п. 39),
+# src/data/spravochniki/udareniya.json rc-site, в облаке его кладёт штатный checkout в rc-site-slovar/.
+SLOVAR = ROOT / "rc-site-slovar" / "src" / "data" / "spravochniki" / "udareniya.json"
+UDAR = {}
+
+def udareniya():
+    if not UDAR:
+        if not SLOVAR.exists():
+            raise SystemExit(f"нет словаря ударений сайта {SLOVAR} — в render.yml/audiogid.yml шаг checkout rc-site-slovar")
+        UDAR.update({k: v for k, v in json.loads((ROOT / "udareniya.json").read_text()).items() if k != "_"})
+        for k, z in json.loads(SLOVAR.read_text()).items():
+            if k == "_": continue
+            for f in z["formy"]:
+                UDAR[f.replace("\u0301", "").lower()] = f.lower()
+    return UDAR
 
 def udar(text):
-    """Ставит ударения из udareniya.json (регистр первой буквы сохраняется)."""
+    """Ставит ударения из udareniya.json и словаря имён сайта (регистр первой буквы сохраняется)."""
+    slova = udareniya()
     def rep(m):
-        w = m.group(0); v = UDAR.get(w.lower())
+        w = m.group(0); v = slova.get(w.lower())
         if not v: return w
         return v[0].upper() + v[1:] if w[0].isupper() else v
     return re.sub(r"[А-Яа-яЁё]+", rep, text)
