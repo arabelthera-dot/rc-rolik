@@ -60,13 +60,41 @@ def pustoj(mp3, words):
 def ts(x, sep):
     ms = int(round(x * 1000)); return f"{ms // 3600000:02d}:{ms // 60000 % 60:02d}:{ms // 1000 % 60:02d}{sep}{ms % 1000:03d}"
 
+def frazy(ws, dlina=42):
+    """Слова сцены -> строки субтитров: фраза до точки, «?», «!», «…»; длинная делится на ровные строки до 42 знаков
+    (норма строки субтитров) разбиением с наименьшим штрафом, как перенос строк у Кнута — Пласса: без хвоста в одно
+    слово и без строки, начатой тире."""
+    predl, cur = [], []
+    for w in ws:
+        cur.append(w)
+        if re.search(r"[.!?…]$", w["w"]): predl.append(cur); cur = []
+    if cur: predl.append(cur)
+    out = []
+    for p in predl:
+        n = len(p); best = [0.0] + [float("inf")] * n; ot = [0] * (n + 1)
+        for j in range(1, n + 1):
+            for i in range(j - 1, -1, -1):
+                L = len(" ".join(w["w"] for w in p[i:j]))
+                if L > dlina and j - i > 1: break
+                shtraf = (dlina - L) ** 2 + (400 if j - i == 1 and n > 1 else 0) + (400 if p[i]["w"] in "—–-" else 0)
+                if best[i] + shtraf < best[j]: best[j], ot[j] = best[i] + shtraf, i
+        kusky, j = [], n
+        while j: kusky.append(p[ot[j]:j]); j = ot[j]
+        out += kusky[::-1]
+    return out
+
 def slova(out, segs):
-    """Слова с временами рядом с voice.mp3 (п.67): voice.words.json, voice.srt, voice.vtt — по слову на строку субтитров."""
-    ws = [{"t": w["t"], "d": round(w["d"], 3), "w": w["w"]} for sg in segs for w in sg["words"]]
+    """Слова с временами рядом с voice.mp3 (п.67): voice.words.json — по слову; voice.srt, voice.vtt — субтитры строками
+    из текста сценария (show, иначе say, без знаков ударения) по времени озвученных слов (r725 п.131); voice.txt — текст
+    ролика по сцене на строку, для расшифровки на странице дня (r725 п.138)."""
+    chisto = lambda x: x.replace("\u0301", "").replace("\u00a0", " ")
+    ws = [{"t": w["t"], "d": round(w["d"], 3), "w": chisto(w["w"])} for sg in segs for w in sg["words"]]
     (out / "voice.words.json").write_text(json.dumps(ws, ensure_ascii=False, indent=0))
-    cue = lambda w, sep: f"{ts(w['t'], sep)} --> {ts(w['t'] + max(w['d'], 0.05), sep)}\n{w['w']}\n"
-    (out / "voice.srt").write_text("\n".join(f"{k + 1}\n" + cue(w, ",") for k, w in enumerate(ws)))
-    (out / "voice.vtt").write_text("WEBVTT\n\n" + "\n".join(cue(w, ".") for w in ws))
+    stroki = [f for sg in segs for f in frazy([{**w, "w": chisto(w["w"])} for w in sg["words"]])]
+    cue = lambda f, sep: f"{ts(f[0]['t'], sep)} --> {ts(f[-1]['t'] + max(f[-1]['d'], 0.05), sep)}\n{' '.join(w['w'] for w in f)}\n"
+    (out / "voice.srt").write_text("\n".join(f"{k + 1}\n" + cue(f, ",") for k, f in enumerate(stroki)))
+    (out / "voice.vtt").write_text("WEBVTT\nKind: subtitles\nLanguage: ru\n\n" + "\n".join(cue(f, ".") for f in stroki))
+    (out / "voice.txt").write_text("".join(" ".join(chisto(w["w"]) for w in sg["words"]) + "\n" for sg in segs))
 
 def main(day):
     cfg = json.loads((ROOT / "days" / f"{day}.json").read_text())
