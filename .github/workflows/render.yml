@@ -182,6 +182,9 @@ jobs:
             public/days/${{ matrix.day }}/sfx.wav
             public/days/${{ matrix.day }}/mix.mp3
             public/days/${{ matrix.day }}/timeline.json
+            public/days/${{ matrix.day }}/voice.words.json
+            public/days/${{ matrix.day }}/voice.srt
+            public/days/${{ matrix.day }}/voice.vtt
             public/days/${{ matrix.day }}/day.json
           retention-days: 14
   layers:
