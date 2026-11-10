@@ -15,6 +15,10 @@
 # Кэш готового ролика (r713 п.60): -f kesh=true — отпечаток sha256 входов ролика (scripts/otpechatok.sh: день, кадры,
 # голос, слои, шрифты, шаблон src/, render.mjs, lock, вариант, формат); тот же отпечаток уже собран — ролик из
 # actions/cache, Remotion не запускается. По умолчанию false — сборка как раньше. Откат: убрать вход kesh и шаги kesh.
+# Слои звука (r713 п.65, п.66): -f sloi_zvuka=true — рядом с mp4 16x9 в артефакте (и в выпуске) голос <ролик>-golos.mp3,
+# музыка/шумы <ролик>-shum.mp3, субтитры <ролик>.srt/.vtt (scripts/sloi_zvuka.py). Субтитры — из слов edge-tts;
+# -f whisper=true — только для звука без слов (старые ролики, ozvuchka=false) распознаёт faster-whisper. Ролик не меняется.
+# По умолчанию оба false — как раньше. Откат: убрать входы sloi_zvuka, whisper и шаг sloi_zvuka.
 name: render
 # имя прогона = задание и ключ сценария: avto.yml по нему видит, что этот сценарий уже собирали (r685)
 run-name: render ${{ inputs.zadacha }}${{ inputs.zastavka3d }} ${{ inputs.klyuch }}
@@ -46,6 +50,14 @@ on:
         default: ""
       kesh:
         description: "не пересобирать ролик, если такой же (тот же отпечаток входов) уже собран (r713)"
+        type: boolean
+        default: false
+      sloi_zvuka:
+        description: "положить рядом с mp4 16x9 слои: голос, музыку/шумы, субтитры srt/vtt (r713 п.65)"
+        type: boolean
+        default: false
+      whisper:
+        description: "нет слов edge-tts — субтитры распознать faster-whisper (r713 п.66; нужен sloi_zvuka)"
         type: boolean
         default: false
       zapasnoj_golos:
@@ -304,6 +316,17 @@ jobs:
             out/*-poster.jpg
             out/*.sec
           key: rolik-${{ matrix.day }}-${{ matrix.v }}-${{ matrix.f }}-${{ steps.otp.outputs.sha }}
+      # слои звука (r713 п.65): один раз на день-вариант, при 16x9 — голос и звук у форматов общие
+      - if: inputs.sloi_zvuka && matrix.f == '16x9'
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: "3.11"
+      - if: inputs.sloi_zvuka && matrix.f == '16x9' && inputs.whisper
+        run: pip install -q faster-whisper==1.2.1
+      - if: inputs.sloi_zvuka && matrix.f == '16x9'
+        uses: ./.github/actions/ffmpeg
+      - if: inputs.sloi_zvuka && matrix.f == '16x9'
+        run: python scripts/sloi_zvuka.py "${{ matrix.day }}" "out/${{ matrix.day }}-${{ matrix.v }}-${{ matrix.f }}" ${{ inputs.whisper && '--whisper' || '' }}
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: ${{ matrix.day }}-${{ matrix.v }}-${{ matrix.f }}
@@ -311,6 +334,10 @@ jobs:
             out/*.mp4
             out/*-poster.jpg
             out/*.sec
+            out/*-golos.mp3
+            out/*-shum.mp3
+            out/*.srt
+            out/*.vtt
           retention-days: 14
   # Выпуск на сайт (r538/r544): общий шаг .github/workflows/vypusk.yml — тот же, что ручной выпуск из готового прогона.
   vypusk:

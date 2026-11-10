@@ -21,12 +21,12 @@ export const kluchDnya = (id) => {
   return `${String(MES.indexOf(m[2]) + 1).padStart(2, '0')}-${m[1].padStart(2, '0')}`;
 };
 
-export async function kartochka(key) {
+export async function kartochka(key, muzei = 'ne-sdayutsya') {
   if (process.env.RC_SITE) {
-    const f = path.join(process.env.RC_SITE, 'src/content/days/ne-sdayutsya', `${key}.json`);
+    const f = path.join(process.env.RC_SITE, 'src/content/days', muzei, `${key}.json`);
     return fs.existsSync(f) ? JSON.parse(fs.readFileSync(f, 'utf8')) : null;
   }
-  const r = await fetch(`${RAW}/src/content/days/ne-sdayutsya/${key}.json`);
+  const r = await fetch(`${RAW}/src/content/days/${muzei}/${key}.json`);
   if (r.status === 404) return null;
   if (!r.ok) throw new Error(`rc-site ${key}.json: HTTP ${r.status}`);
   return r.json();
