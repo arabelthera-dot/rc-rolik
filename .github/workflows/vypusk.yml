@@ -80,8 +80,8 @@ jobs:
             src="sobrano/$DAY-$V-$f"; suf=""; [ "$f" = 9x16 ] && suf="-9x16"
             [ -f "$src.mp4" ] || { echo "::error::нет $src.mp4 — формат $f не собран в прогоне $RUN, выпуска нет"; exit 1; }
             cp "$src.mp4" "rel/day-$imya$suf.mp4"; cp "$src-poster.jpg" "rel/day-$imya$suf-poster.jpg"
-            # слои звука (r713 п.65, render -f sloi_zvuka=true) — рядом с mp4, если собраны; сайт берёт из выпуска только mp4 и обложки
-            for x in -golos.mp3 -shum.mp3 .srt .vtt; do if [ -f "$src$x" ]; then cp "$src$x" "rel/day-$imya$suf$x"; fi; done
+            # слои звука (r713 п.65, render -f sloi_zvuka=true), субтитры .vtt и текст ролика .txt (r725 п.131, п.138) — рядом с mp4, если собраны
+            for x in -golos.mp3 -shum.mp3 .srt .vtt .txt; do if [ -f "$src$x" ]; then cp "$src$x" "rel/day-$imya$suf$x"; fi; done
             jq -n --arg f "$f" --arg sec "$(cat "$src.sec")" --arg b "$(stat -c %s "$src.mp4")" \
               '{($f): {sec: ($sec|tonumber*10|round/10), mb: ($b|tonumber/1048576*10|round/10)}}' > "sobrano/$f.json"
           done

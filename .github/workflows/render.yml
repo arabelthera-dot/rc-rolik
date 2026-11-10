@@ -205,6 +205,7 @@ jobs:
             public/days/${{ matrix.day }}/voice.words.json
             public/days/${{ matrix.day }}/voice.srt
             public/days/${{ matrix.day }}/voice.vtt
+            public/days/${{ matrix.day }}/voice.txt
             public/days/${{ matrix.day }}/day.json
           retention-days: 14
   layers:
@@ -327,6 +328,12 @@ jobs:
         uses: ./.github/actions/ffmpeg
       - if: inputs.sloi_zvuka && matrix.f == '16x9'
         run: python scripts/sloi_zvuka.py "${{ matrix.day }}" "out/${{ matrix.day }}-${{ matrix.v }}-${{ matrix.f }}" ${{ inputs.whisper && '--whisper' || '' }}
+      # субтитры и текст ролика (r725 п.131, п.138): всегда рядом с mp4 16x9 — <ролик>.vtt (WebVTT, строки из сценария
+      # по времени голоса) и <ролик>.txt (сценарий дословно); слои звука уже положили — не трогаем. Откат: убрать шаг.
+      - if: matrix.f == '16x9'
+        run: |
+          d="public/days/${{ matrix.day }}"; o="out/${{ matrix.day }}-${{ matrix.v }}-${{ matrix.f }}"
+          for x in vtt srt txt; do if [ -f "$d/voice.$x" ] && [ ! -f "$o.$x" ]; then cp "$d/voice.$x" "$o.$x"; fi; done
       # приёмка ролика (Р715, п.62) — подсказка в сводку прогона: звук, тишина, громкость, длина, субтитры, чёрные кадры.
       # Не проверка (Р627): выход всегда 0, continue-on-error, выпуск не ждёт. Ролик из кэша уже принимался — пропуск.
       - if: steps.kesh.outputs.cache-hit != 'true'
@@ -343,6 +350,7 @@ jobs:
             out/*-shum.mp3
             out/*.srt
             out/*.vtt
+            out/*.txt
           retention-days: 14
   # Выпуск на сайт (r538/r544): общий шаг .github/workflows/vypusk.yml — тот же, что ручной выпуск из готового прогона.
   vypusk:
