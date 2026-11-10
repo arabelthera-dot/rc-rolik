@@ -3,3 +3,4 @@ out/
 __pycache__/
 public/days/*/seg*.json
 rc-site-slovar/
+.piper/

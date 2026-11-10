@@ -60,6 +60,10 @@ on:
         description: "нет слов edge-tts — субтитры распознать faster-whisper (r713 п.66; нужен sloi_zvuka)"
         type: boolean
         default: false
+      zapasnoj_golos:
+        description: "edge-tts не ответил после всех повторов — сцену озвучивает бесплатный Piper ru_RU-dmitri-medium (п.92); по умолчанию выключено"
+        type: boolean
+        default: false
 concurrency:
   group: render-${{ github.run_id }}
 jobs:
@@ -178,7 +182,11 @@ jobs:
           path: public/days/${{ matrix.day }}/seg*
           key: tts-${{ matrix.day }}-${{ github.run_id }}-${{ github.run_attempt }}
           restore-keys: tts-${{ matrix.day }}-
+      - if: inputs.zapasnoj_golos
+        run: pip install -q piper-tts==1.8.0
       - run: python scripts/tts.py "${{ matrix.day }}"
+        env:
+          ZAPASNOJ_GOLOS: ${{ inputs.zapasnoj_golos && 'piper' || '' }}
       - if: always()
         uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
