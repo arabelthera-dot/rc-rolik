@@ -1,12 +1,14 @@
 """Озвучка аудиогида (r310): transcript-yaml -> out/audiogid/<den>.mp3 + <den>.json (длительности абзацев).
 Голос, ударения и повторы — те же, что у роликов (scripts/tts.py, udareniya.json). Абзацы озвучиваются по одному на машину.
 Вход: yaml дня сайта (audioguide.transcript) или отдельный yaml с верхним transcript; абзацы — строки с <p>…</p>."""
-import asyncio, json, sys, re, subprocess, pathlib, random, time, html
+import asyncio, json, os, sys, re, subprocess, pathlib, random, time, html
 import yaml
 from tts import synth, udar, dur, TRIES
+import zvuk
 
 GAP = 0.6  # пауза между абзацами, с
 BEZ_UDAR = 3  # из TRIES попыток — последние без знаков ударения (r685)
+PAUZY = os.environ.get("AUDIO_PAUZY") == "1"  # r713 п.64: обрезка тишины по краям абзаца и паузы > 0,7 с; по умолчанию выкл.
 
 def abzacy(path):
     d = yaml.safe_load(pathlib.Path(path).read_text())
@@ -37,6 +39,7 @@ def abzac(path, i, voice, rate, outdir):
             p = min(3 * 2 ** k, 60) + random.uniform(0, 3)
             print(f"  абзац {i}: попытка {k + 1} из {TRIES} — {type(e).__name__}, жду {p:.0f} с", flush=True)
             time.sleep(p)
+    if PAUZY: zvuk.pauzy(mp3)  # до замера длительности: начала абзацев в <den>.json — по сжатому звуку
     # все ли фразы озвучены: число слов от службы против слов в тексте
     src = len([w for w in s.split() if re.search(r"\w", w)])
     d = dur(mp3)
@@ -60,6 +63,7 @@ def skleika(path, voice, rate, outdir, den=""):
     full = out / f"{den}.mp3"
     subprocess.check_call(["ffmpeg", "-y", "-v", "error", "-f", "concat", "-safe", "0", "-i", str(lst), "-ar", "24000", "-ac", "1", "-c:a", "libmp3lame", "-b:a", "64k", str(full)])
     lst.unlink(); sil.unlink()
+    zvuk.gromkost(full)  # r713 п.91: одна громкость -16 LUFS (EBU R128), формат прежний — mp3 24 кГц моно 64k
     total = dur(full)
     (out / f"{den}.json").write_text(json.dumps({"den": den, "voice": voice, "rate": rate, "total": round(total, 2), "abzacy": segs}, ensure_ascii=False, indent=1))
     plohie = [s["i"] for s in segs if s["slov_golos"] < 0.9 * s["slov_tekst"]]

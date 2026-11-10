@@ -27,12 +27,16 @@ on:
       klyuch:
         description: "ключ текста (ставит avto.yml), только для имени прогона"
         default: ""
+      pauzy:
+        description: "1 — обрезать тишину по краям абзацев и сжать паузы > 0,7 с (r713 п.64, scripts/zvuk.py)"
+        default: "0"
 concurrency:
   group: audiogid  # прогоны по одному (r260)
   cancel-in-progress: false
 env:
   GOLOS: ${{ inputs.golos || 'ru-RU-DmitryNeural' }}
   TEMP: ${{ inputs.temp || '+18%' }}
+  AUDIO_PAUZY: ${{ inputs.pauzy || '0' }}
 jobs:
   razbor:
     runs-on: ubuntu-latest
