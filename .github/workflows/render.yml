@@ -369,6 +369,8 @@ jobs:
     uses: ./.github/workflows/vypusk.yml
     with:
       day: ${{ matrix.day }}
+    secrets:
+      RC_SITE_SIGNAL: ${{ secrets.RC_SITE_SIGNAL }}
   zastavka3d:
     if: inputs.zastavka3d != ''
     runs-on: ubuntu-latest
