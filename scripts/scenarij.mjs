@@ -11,6 +11,9 @@
 // «Русские не сдаются.» → cta. Ударения ставит scripts/tts.py по udareniya.json и словарю имён сайта; числа в say читает голос.
 // Факт без своего кадра идёт на следующем кадре страницы; не набралось 40 с, нет хука или обложки — день не пишется, код 2.
 // Запуск: node scripts/scenarij.mjs 01-06..01-15 [--proba] — --proba только печатает мерило, ничего не пишет.
+// Изобретения (r713 п.57) — только с флагом --muzej=izobreteniya: те же поля сайта музея izobreteniya, день ДДмес (02feb),
+// без «Русские не сдаются.», в ролик — все кадры страницы (обложка, кадры фактов, figures). Готовые days/ДДмес.json
+// не перезаписываются: --v=<папка> пишет в <папка>/days/ и <папка>/kadry/, в days/ репо — только с --zamenit.
 // Откат: удалить файл; days/*.json, собранные им, остаются обычными сценариями.
 import fs from 'node:fs';
 import path from 'node:path';
@@ -25,10 +28,18 @@ const RAW = 'https://raw.githubusercontent.com/arabelthera-dot/rc-site/main';
 const ZNAKOV_V_SEK = 13.2; // ns04jan: 625 знаков озвучки — 47,5 с в облаке (rate +18%)
 const MIN_SEK = 40, MAX_SEK = 60, CEL_SEK = 52;
 const CTA = { id: 'cta', say: 'Смотри день целиком на сайте рашн-цивилизейшн точка ру.', show: 'Смотри день целиком на russian-civilization.ru', image: null, fx: 'endcard', labels: { deco: 'none' } };
-const FINAL = 'Русские не сдаются.';
-
 const argi = process.argv.slice(2);
 const PROBA = argi.includes('--proba');
+const flag = (imya) => argi.find((x) => x.startsWith(`--${imya}=`))?.slice(imya.length + 3);
+const MUZEJ = flag('muzej') ?? 'ne-sdayutsya';
+const MUZEI = {
+  'ne-sdayutsya': { pref: 'ns', reestr: 'nesdayutsya', final: 'Русские не сдаются.' },
+  izobreteniya: { pref: '', reestr: 'izobreteniya', final: '' },
+};
+if (!MUZEI[MUZEJ]) { console.error(`ОСТАНОВ: --muzej=${MUZEJ} — умею ${Object.keys(MUZEI).join(', ')}`); process.exit(1); }
+const { pref: PREF, reestr: REESTR, final: FINAL } = MUZEI[MUZEJ];
+const KUDA = flag('v') ? path.resolve(flag('v')) : ROOT;
+const ZAMENIT = argi.includes('--zamenit');
 const dni = [];
 for (const a of argi.filter((x) => !x.startsWith('--'))) {
   const m = a.match(/^(\d\d)-(\d\d)(?:\.\.(\d\d)-(\d\d))?$/);
@@ -52,7 +63,7 @@ async function sajt(rel, kak = 'text') {
 // Факты yaml с текстом и порядком утверждённого — функцией сайта faktyIzUtverzhdeno (src/lib/fakty-iz-utverzhdeno.mjs).
 // С RC_SITE модуль и копия читаются из неё; без — скачиваются из main во временный корень, модулю нужен только node:fs.
 async function izUtverzhdeno(st, key) {
-  const MOD = 'src/lib/fakty-iz-utverzhdeno.mjs', UTV = `src/data/utverzhdeno/ne-sdayutsya/${key}.json`;
+  const MOD = 'src/lib/fakty-iz-utverzhdeno.mjs', UTV = `src/data/utverzhdeno/${MUZEJ}/${key}.json`;
   let koren = process.env.RC_SITE;
   if (!koren) {
     const [mod, utv] = await Promise.all([sajt(MOD), sajt(UTV)]);
@@ -65,7 +76,7 @@ async function izUtverzhdeno(st, key) {
   }
   const { faktyIzUtverzhdeno } = await import(pathToFileURL(path.join(koren, MOD)).href);
   const iz = fs.existsSync(path.join(koren, UTV));
-  const r = faktyIzUtverzhdeno(st, 'ne-sdayutsya', key, koren);
+  const r = faktyIzUtverzhdeno(st, MUZEJ, key, koren);
   if (!process.env.RC_SITE) fs.rmSync(koren, { recursive: true, force: true });
   return { ...r, iz };
 }
@@ -87,11 +98,11 @@ const razmer = (b) => {
 
 async function denOdin(key) {
   const [mm, dd] = key.split('-');
-  const id = `ns${dd}${MES[+mm - 1]}`;
-  const k = await kartochka(key);
-  if (!k?.hook) return { id, key, otkaz: `нет хука в карточке src/content/days/ne-sdayutsya/${key}.json` };
-  const yt = await sajt(`src/content/dni-shablon/ne-sdayutsya/${key}.yaml`);
-  if (!yt) return { id, key, otkaz: `нет страницы src/content/dni-shablon/ne-sdayutsya/${key}.yaml` };
+  const id = `${PREF}${dd}${MES[+mm - 1]}`;
+  const k = await kartochka(key, MUZEJ);
+  if (!k?.hook) return { id, key, otkaz: `нет поля hook в карточке src/content/days/${MUZEJ}/${key}.json` };
+  const yt = await sajt(`src/content/dni-shablon/${MUZEJ}/${key}.yaml`);
+  if (!yt) return { id, key, otkaz: `нет страницы src/content/dni-shablon/${MUZEJ}/${key}.yaml` };
   const utv = await izUtverzhdeno(yaml.load(yt), key);
   if (utv.oshibki.length) return { id, key, otkaz: utv.oshibki.join('; ') };
   const st = utv.syroe;
@@ -104,6 +115,7 @@ async function denOdin(key) {
   };
   const segs = [{ id: 'hook', say: k.hook.trim(), image: kadr(st.oblozhka.src), fx: 'photo', show: k.hook.trim() }];
   const fakty = (st.fakty || []).flatMap((b) => b.udary || []).filter((u) => u.summary);
+  if (!fakty.length) return { id, key, otkaz: `нет текста фактов: у fakty[].udary пустой summary в yaml и нет копии src/data/utverzhdeno/${MUZEJ}/${key}.json` };
   const bezKadra = fakty.filter((u) => !u.kadr?.src).length;
   // пул кадров страницы: обложка, кадры фактов, figures; факт без своего кадра берёт следующий ещё не показанный
   const pul = [st.oblozhka.src, ...fakty.map((u) => u.kadr?.src), ...(st.figures || []).map((f) => f.src)]
@@ -123,8 +135,10 @@ async function denOdin(key) {
   }
   if (segs.length < 2) return { id, key, otkaz: 'ни одного факта с кадром на странице' };
   const posl = segs[segs.length - 1];
-  posl.say = `${posl.say} ${FINAL}`;
-  posl.show = `${posl.show} ${FINAL}`;
+  if (FINAL) {
+    posl.say = `${posl.say} ${FINAL}`;
+    posl.show = `${posl.show} ${FINAL}`;
+  }
   segs.push(CTA);
   const dlit = +sek(segs).toFixed(1);
 
@@ -134,10 +148,10 @@ async function denOdin(key) {
   const imya = slug ? `${dd}${MES[+mm - 1]}-${slug}` : staryj?.sajt?.imya;
   const cfg = {
     id,
-    source_md: `rc-site src/content/days/ne-sdayutsya/${key}.json (hook); src/content/dni-shablon/ne-sdayutsya/${key}.yaml (факты, кадры)${utv.iz ? `; src/data/utverzhdeno/ne-sdayutsya/${key}.json (текст и порядок фактов)` : ''} — собрано scripts/scenarij.mjs`,
+    source_md: `rc-site src/content/days/${MUZEJ}/${key}.json (hook); src/content/dni-shablon/${MUZEJ}/${key}.yaml (факты, кадры)${utv.iz ? `; src/data/utverzhdeno/${MUZEJ}/${key}.json (текст и порядок фактов)` : ''} — собрано scripts/scenarij.mjs`,
     voice: 'ru-RU-DmitryNeural',
     rate: '+18%',
-    ...(imya ? { sajt: { muzei: 'ne-sdayutsya', reestr: 'nesdayutsya', imya } } : {}),
+    ...(imya ? { sajt: { muzei: MUZEJ, reestr: REESTR, imya } } : {}),
     segments: segs,
     images: {},
   };
@@ -170,9 +184,16 @@ for (const key of dni) {
   if (!ok) plohih++;
   console.log(`${ok ? '✓' : '✗'} ${key} ${r.id}: ~${m.dlit} с, фактов ${m.faktov} (без кадра на странице ${m.bezKadra}), хук ${m.hukDoslovno ? '= карточка' : '≠ карточка'}, кадров ${Object.keys(r.cfg.images).length}`);
   if (PROBA || !ok) continue;
-  fs.mkdirSync(path.join(ROOT, 'kadry', r.id), { recursive: true });
-  for (const [f, b] of r.fajly) fs.writeFileSync(path.join(ROOT, f), b);
-  fs.writeFileSync(path.join(ROOT, 'days', `${r.id}.json`), `${JSON.stringify(r.cfg, null, 2)}\n`);
+  const fd = path.join(KUDA, 'days', `${r.id}.json`);
+  if (MUZEJ !== 'ne-sdayutsya' && KUDA === ROOT && fs.existsSync(fd) && !ZAMENIT) {
+    plohih++; console.log(`  ✗ days/${r.id}.json уже есть — не перезаписываю; --v=<папка> для пробы или --zamenit`); continue;
+  }
+  fs.mkdirSync(path.join(KUDA, 'kadry', r.id), { recursive: true });
+  fs.mkdirSync(path.join(KUDA, 'days'), { recursive: true });
+  for (const [f, b] of r.fajly) fs.writeFileSync(path.join(KUDA, f), b);
+  fs.writeFileSync(fd, `${JSON.stringify(r.cfg, null, 2)}\n`);
+  console.log(`  записано ${path.relative(process.cwd(), fd)}`);
+  if (MUZEJ !== 'ne-sdayutsya' || KUDA !== ROOT) continue; // замок хука — для days/ns*.json репо
   const z = await zamokDnya(r.id);
   if (z.length) { plohih++; z.forEach((e) => console.log(`  ✗ замок: ${e}`)); }
 }
