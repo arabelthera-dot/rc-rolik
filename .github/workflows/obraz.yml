@@ -1,0 +1,46 @@
+# Сборка готового образа машины для роликов (r713 п.69) в GHCR: ghcr.io/arabelthera-dot/rc-rolik-mashina.
+# Идёт сама при изменении Dockerfile, package-lock.json или .github/actions/ffmpeg в main; вручную — gh workflow run obraz.yml.
+# Как в мире: публикация образа в GitHub Packages штатным GITHUB_TOKEN
+# (https://docs.github.com/en/actions/use-cases-and-examples/publishing-packages/publishing-docker-images).
+# Теги: latest и отпечаток входов (sha256 Dockerfile + lock + ffmpeg) — render.yml с obraz=true берёт latest.
+# Откат: удалить этот файл и Dockerfile; render.yml без obraz=true образ не трогает.
+name: obraz
+on:
+  push:
+    branches: [main, r713b-obraz]
+    paths:
+      - Dockerfile
+      - package.json
+      - package-lock.json
+      - .github/actions/ffmpeg/**
+      - .github/workflows/obraz.yml
+  workflow_dispatch:
+concurrency:
+  group: obraz
+  cancel-in-progress: false
+permissions:
+  contents: read
+  packages: write
+jobs:
+  obraz:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - name: сборка и выгрузка
+        env:
+          TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          a=.github/actions/ffmpeg/action.yml
+          val() { sed -n "s/.*echo \"$1=\([^\"]*\)\".*/\1/p" "$a"; }
+          tag=$(val tag); fajl=$(val fajl); sha=$(val sha256)
+          otp=$(cat Dockerfile package.json package-lock.json "$a" | sha256sum | cut -c1-16)
+          img=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/rc-rolik-mashina
+          echo "$TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
+          docker build --build-arg FF_TAG="$tag" --build-arg FF_FAJL="$fajl" --build-arg FF_SHA256="$sha" \
+            -t "$img:$otp" -t "$img:latest" .
+          docker push "$img:$otp"
+          docker push "$img:latest"
+          docker image ls "$img" --format '{{.Tag}} {{.Size}}'
+          echo "::notice::образ $img:$otp (и latest) выгружен"
