@@ -66,6 +66,9 @@ on:
         default: false
 concurrency:
   group: render-${{ github.run_id }}
+# Права по умолчанию — только чтение (п.502, Р745); запись — у задания выпуска.
+permissions:
+  contents: read
 jobs:
   plan:
     # при заставке plan пропущен — ozvuchka, layers и render пропускаются вслед за ним
