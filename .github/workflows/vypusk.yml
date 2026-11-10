@@ -7,13 +7,17 @@
 # (+ "variant", по умолчанию A). Нет поля или собраны не оба формата — выпуска нет, день на сайт не идёт.
 # Вызов: render.yml (задание vypusk, свой прогон) и вручную — из уже собранного прогона, без нового рендера:
 #   gh workflow run vypusk.yml -f day=ns05jan -f run=41872718715
-# Свой GITHUB_TOKEN (contents: write, actions: read), секретов не нужно. Откат — revert заявки.
+# Свой GITHUB_TOKEN (contents: write, actions: read). Сигнал rc-site «ролик готов» (Р737 п.15) — секрет RC_SITE_SIGNAL
+# (fine-grained, только rc-site, Contents: write; Михаил 10.11): repository_dispatch rolik-gotov будит rolik-na-sait.yml
+# сразу, без него ролик заберёт страховка раз в 6 ч. Откат — revert заявки.
 name: vypusk
 on:
   workflow_call:
     inputs:
       day: {type: string, required: true}
       run: {type: string, required: false, default: ""}
+    secrets:
+      RC_SITE_SIGNAL: {required: false}
   workflow_dispatch:
     inputs:
       day:
@@ -96,3 +100,11 @@ jobs:
             --title "Выпуск $DAY → $(jq -r '.reestr + "/" + .imya' rel/vypusk.json)" \
             --notes "Ролик $DAY, вариант $V, прогон $RUN. На сайт придёт заявкой rc-site rolik-na-sait (r538)."
           echo "Выпуск на сайт: https://github.com/$GITHUB_REPOSITORY/releases/tag/$tag" | tee -a "$GITHUB_STEP_SUMMARY"
+      # сигнал rc-site: выпуск есть — забрать сейчас (https://docs.github.com/en/rest/repos/repos#create-a-repository-dispatch-event)
+      - if: steps.s.outputs.est == '1'
+        env:
+          GH_TOKEN: ${{ secrets.RC_SITE_SIGNAL }}
+        run: |
+          if [ -z "$GH_TOKEN" ]; then echo "::warning::нет секрета RC_SITE_SIGNAL — ролик заберёт страховка rc-site раз в 6 ч"; exit 0; fi
+          gh api repos/arabelthera-dot/rc-site/dispatches -f event_type=rolik-gotov -F "client_payload[den]=$DAY" -F "client_payload[run]=$RUN"
+          echo "Сигнал rc-site rolik-gotov отправлен: $DAY, прогон $RUN" | tee -a "$GITHUB_STEP_SUMMARY"
