@@ -1,12 +1,19 @@
-# Ролик и аудиогид дня — сами при выходе дня (r685, Р685). Раз в полчаса смотрит rc-site main и свои days/:
+# Ролик и аудиогид дня — сами при выходе дня (r685, Р685). Смотрит rc-site main и свои days/:
 # новый или изменённый день → audiogid.yml и render.yml с нужными входами; упавший прогон — gh run rerun --failed
 # до 2 раз с паузой ≥ 25 мин; после 3-го отказа — карточка с одной строкой ошибки. Логика — scripts/avto.py.
 # Ключ не нужен: GITHUB_TOKEN запускает workflow_dispatch в своём репо (rc-site публичный, читается без ключа).
+# Когда (Р763, 13.11.2026): сразу по сигналу rc-site — repository_dispatch den-vyshel от rolik-signal.yml при push
+# в main по путям дней (как в мире — GitHub Docs «Events that trigger workflows: repository_dispatch»,
+# https://docs.github.com/en/actions/writing-workflows/choosing-when-your-workflow-runs/events-that-trigger-workflows#repository_dispatch);
+# страховка — крон каждые 5 мин (меньше GitHub не даёт); concurrency avto держит один прогон и один в очереди — не наслаивается.
+# Откат в одну строку: cron обратно '17,47 * * * *'.
 # Выключатель: переменная репо MEDIA_AVTO=0. Руками: gh workflow run avto.yml -f dni="ne-sdayutsya/02-01 izobreteniya/02-02"
 name: avto
 on:
+  repository_dispatch:
+    types: [den-vyshel]
   schedule:
-    - cron: '17,47 * * * *'
+    - cron: '*/5 * * * *'
   workflow_dispatch:
     inputs:
       dni:
