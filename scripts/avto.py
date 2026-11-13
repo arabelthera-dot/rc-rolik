@@ -1,4 +1,4 @@
-"""Ролик и аудиогид дня — машиной при выходе дня (r685, Р685). Запускает avto.yml раз в полчаса.
+"""Ролик и аудиогид дня — машиной при выходе дня (r685, Р685). Запускает avto.yml по сигналу rc-site и раз в 5 мин (Р763).
 Что делает (stdout — команды gh, по одной на строку; их исполняет avto.yml):
 1) день сайта (rc-site main, src/content/dni-shablon/<музей>/ММ-ДД.yaml), изменённый за окно, с audioguide.transcript
    и audioSrc — audiogid.yml; ключ = sha1 текста гида. Прогон с таким именем уже был — второй раз не запускается.
@@ -6,7 +6,7 @@
    У НС сценарий собирает в облаке scripts/scenarij.mjs (r699), поэтому ключ — sha1 того, из чего он собран:
    карточка src/content/days/ne-sdayutsya/ММ-ДД.json + yaml страницы + копия src/data/utverzhdeno/ne-sdayutsya/ММ-ДД.json (если есть).
    Источник — день сайта из п.1 (и для НС — изменённые за окно карточка или копия утверждённого) или свой days/*.json.
-3) упавший прогон audiogid/render с ключом: попытка 1–2 — gh run rerun --failed (пауза — до следующего опроса, ≥ 25 мин);
+3) упавший прогон audiogid/render с ключом: попытка 1–2 — gh run rerun --failed (пауза ≥ 25 мин — PAUZA);
    после 3-й — карточка с первой строкой ошибки (печатает строку KARTOCHKA <run> <текст>).
 Запуск: python scripts/avto.py <папка rc-site> <окно, напр. '3 days ago'> [<музей/ММ-ДД> …]"""
 import hashlib, json, pathlib, re, subprocess, sys, time
