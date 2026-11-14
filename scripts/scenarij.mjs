@@ -24,7 +24,9 @@ import { kartochka, zamokDnya, norm } from './zamok-huk.mjs';
 
 const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..');
 const MES = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
-const RAW = 'https://raw.githubusercontent.com/arabelthera-dot/rc-site/main';
+// ветка rc-site (r763): RC_SITE_REF=<ветка заявки дня> — сценарий из заявки страницы, до слияния; пусто — main
+const REF = process.env.RC_SITE_REF || 'main';
+const RAW = `https://raw.githubusercontent.com/arabelthera-dot/rc-site/${REF === 'main' ? 'main' : `refs/heads/${REF}`}`;
 const ZNAKOV_V_SEK = 13.2; // ns04jan: 625 знаков озвучки — 47,5 с в облаке (rate +18%)
 const MIN_SEK = 40, MAX_SEK = 60, CEL_SEK = 52;
 const CTA = { id: 'cta', say: 'Смотри день целиком на сайте рашн-цивилизейшн точка ру.', show: 'Смотри день целиком на russian-civilization.ru', image: null, fx: 'endcard', labels: { deco: 'none' } };

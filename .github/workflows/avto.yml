@@ -7,6 +7,8 @@
 # https://docs.github.com/en/actions/writing-workflows/choosing-when-your-workflow-runs/events-that-trigger-workflows#repository_dispatch);
 # страховка — крон каждые 5 мин (меньше GitHub не даёт); concurrency avto держит один прогон и один в очереди — не наслаивается.
 # Откат в одну строку: cron обратно '17,47 * * * *'.
+# Заявки дней (r763, Р763): и открытые заявки rc-site с yaml страницы дня — гид и ролик по ветке заявки сразу, до слияния;
+# выпуск на сайт приносит rolik-na-sait.yml, как обычно. Выключатель только этого: переменная MEDIA_AVTO_ZAYAVKI=0.
 # Выключатель: переменная репо MEDIA_AVTO=0. Руками: gh workflow run avto.yml -f dni="ne-sdayutsya/02-01 izobreteniya/02-02"
 name: avto
 on:
@@ -54,6 +56,7 @@ jobs:
       - name: что запустить
         env:
           DNI: ${{ inputs.dni }}
+          ZAYAVKI: ${{ vars.MEDIA_AVTO_ZAYAVKI || '1' }}
         run: |
           # shellcheck disable=SC2086
           python scripts/avto.py rc-site '3 days ago' $DNI > komandy.txt
