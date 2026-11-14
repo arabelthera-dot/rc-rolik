@@ -1,0 +1,127 @@
+{
+ "id": "12feb",
+ "source_md": "rc-site src/content/dni-shablon/izobreteniya/02-12.yaml",
+ "voice": "ru-RU-DmitryNeural",
+ "rate": "+18%",
+ "images": {
+  "portret": {
+   "src": "kadry/12feb/day-12feb-goskatalog-8495993.jpg",
+   "crop": [
+    0,
+    0,
+    1,
+    0.85
+   ],
+   "parallax": false
+  },
+  "shlyup": {
+   "src": "kadry/12feb/day-12feb-goskatalog-3715243.jpg",
+   "crop": [
+    0,
+    0,
+    1,
+    1
+   ],
+   "parallax": false
+  },
+  "dvigatel": {
+   "src": "kadry/12feb/day-12feb-goskatalog-70357920.jpg",
+   "crop": [
+    0,
+    0,
+    1,
+    1
+   ],
+   "parallax": false
+  },
+  "batometr": {
+   "src": "kadry/12feb/day-12feb-goskatalog-10498987.jpg",
+   "crop": [
+    0,
+    0,
+    1,
+    1
+   ],
+   "parallax": false
+  },
+  "tablica": {
+   "src": "kadry/12feb/day-12feb-goskatalog-22255761.jpg",
+   "crop": [
+    0,
+    0.05,
+    1,
+    0.5
+   ],
+   "parallax": false
+  }
+ },
+ "segments": [
+  {
+   "id": "hook",
+   "say": "Тысяча восемьсот тридцать третий год. Ленц первым записал формулой, что природа сопротивляется вмешательству, — на его правиле стоит каждый электродвигатель.",
+   "show": "1833 год. Ленц первым записал формулой, что природа сопротивляется вмешательству, — на его правиле стоит каждый электродвигатель.",
+   "image": "portret",
+   "fx": "plate",
+   "labels": {
+    "text": "правило Ленца",
+    "key": "правило",
+    "image": "portret"
+   }
+  },
+  {
+   "id": "pravilo",
+   "say": "Правило Ленца появилось в тысяча восемьсот тридцать третьем — за четырнадцать лет до закона сохранения энергии.",
+   "show": "Правило Ленца появилось в 1833-м — за 14 лет до закона сохранения энергии.",
+   "image": "tablica",
+   "fx": "years",
+   "labels": {
+    "items": [
+     {
+      "y": "1833",
+      "t": "правило Ленца",
+      "win": true,
+      "key": "правило"
+     },
+     {
+      "y": "1847",
+      "t": "закон сохранения энергии"
+     }
+    ]
+   }
+  },
+  {
+   "id": "okean",
+   "say": "Ленц первым в мире заглянул в глубины океана — отсюда началась океанография.",
+   "image": "shlyup",
+   "fx": "photo"
+  },
+  {
+   "id": "batometr",
+   "say": "В тропиках на глубине километра Ленц намерил плюс две целых две десятых градуса — рекордный холод того времени.",
+   "show": "В тропиках на глубине километра Ленц намерил +2,2° — рекордный холод того времени.",
+   "image": "batometr",
+   "fx": "photo"
+  },
+  {
+   "id": "dvigatel",
+   "say": "Ленц доказал: крутишь вал двигателя Якоби — и он сам даёт ток.",
+   "image": "dvigatel",
+   "fx": "photo"
+  },
+  {
+   "id": "cta",
+   "say": "Смотри день целиком на сайте рашн-цивилизейшн точка ру.",
+   "show": "Смотри день целиком на russian-civilization.ru",
+   "image": null,
+   "fx": "endcard",
+   "labels": {
+    "deco": "none"
+   }
+  }
+ ],
+ "sajt": {
+  "muzei": "izobreteniya",
+  "reestr": "izobreteniya",
+  "imya": "12feb-lenc"
+ }
+}
