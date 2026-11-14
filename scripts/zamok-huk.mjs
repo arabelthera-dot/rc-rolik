@@ -1,11 +1,12 @@
-// Замок сценария «Русские не сдаются» (r544 п.5, Р534/Р536): хук ролика = хук утверждённой карточки дня дословно.
-// Для каждого days/ns*.json: первая сцена — id hook; её текст (show, а нет — say без знаков ударения) совпадает
-// с полем hook карточки rc-site src/content/days/ne-sdayutsya/ММ-ДД.json (ветка main). Кадры сцен — только kadry/<день>/ этого дня.
+// Замок сценария (r544 п.5, Р534/Р536; Р765 — все музеи): хук ролика = хук утверждённой карточки дня дословно.
+// Для каждого days/*.json (музей и дата — как в scripts/huk-iz-kartochki.mjs): первая сцена — id hook; её текст (show, а нет — say без знаков ударения) совпадает
+// с полем hook карточки rc-site src/content/days/<музей>/ММ-ДД.json (ветка main). Кадры сцен дней nsДДмес — только kadry/<день>/ этого дня.
 // Расхождение, нет карточки или кадра → код 1, проверка заявки красная.
-// Запуск: node scripts/zamok-huk.mjs [день ...] (без дней — все days/ns*.json). RC_SITE=<путь> — карточки из своей копии сайта.
+// Запуск: node scripts/zamok-huk.mjs [день ...] (без дней — все days/*.json). RC_SITE=<путь> — карточки из своей копии сайта.
 // Откат: удалить файл и шаг «замок хука» в .github/workflows/proverka.yml.
 import fs from 'node:fs';
 import path from 'node:path';
+import { denSajta } from './huk-iz-kartochki.mjs';
 
 const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..');
 const MES = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
@@ -34,18 +35,19 @@ export async function kartochka(key, muzei = 'ne-sdayutsya') {
 
 export async function zamokDnya(id) {
   const oshibki = [];
-  const key = kluchDnya(id);
-  if (!key) return [`${id}: имя не nsДДмес — не понять, какой день сайта`];
   const cfg = JSON.parse(fs.readFileSync(path.join(ROOT, 'days', `${id}.json`), 'utf8'));
-  const k = await kartochka(key);
-  if (!k?.hook) return [`${id}: нет утверждённой карточки с хуком rc-site src/content/days/ne-sdayutsya/${key}.json`];
+  const den = denSajta(id, cfg);
+  if (!den) return [`${id}: не понять музей и дату дня сайта (нет sajt.muzei, source_md и имени ДДмес)`];
+  const { muzei, key } = den;
+  const k = await kartochka(key, muzei);
+  if (!k?.hook) return [`${id}: нет утверждённой карточки с хуком rc-site src/content/days/${muzei}/${key}.json`];
   const hook = cfg.segments?.[0];
   if (hook?.id !== 'hook') oshibki.push(`${id}: первая сцена не hook`);
   else {
     const tekst = hook.show ?? hook.say;
     if (norm(tekst) !== norm(k.hook)) oshibki.push(`${id}: хук ролика «${tekst}» ≠ хук карточки ${key} «${k.hook}»`);
   }
-  for (const [imya, im] of Object.entries(cfg.images || {})) {
+  if (kluchDnya(id)) for (const [imya, im] of Object.entries(cfg.images || {})) {
     if (!String(im.src).startsWith(`kadry/${id}/`)) oshibki.push(`${id}: кадр «${imya}» ${im.src} не из kadry/${id}/ — кадры только этого дня`);
     else if (!fs.existsSync(path.join(ROOT, im.src))) oshibki.push(`${id}: нет файла кадра ${im.src}`);
   }
@@ -54,10 +56,10 @@ export async function zamokDnya(id) {
 
 if (process.argv[1] && path.resolve(process.argv[1]) === path.resolve(new URL(import.meta.url).pathname)) {
   const dni = process.argv.length > 2 ? process.argv.slice(2)
-    : fs.readdirSync(path.join(ROOT, 'days')).filter((f) => /^ns.*\.json$/.test(f)).map((f) => f.replace('.json', '')).sort();
+    : fs.readdirSync(path.join(ROOT, 'days')).filter((f) => f.endsWith('.json')).map((f) => f.replace('.json', '')).sort();
   let vse = [];
   for (const d of dni) vse = vse.concat(await zamokDnya(d));
   vse.forEach((e) => console.error(`::error file=days/${e.split(':')[0]}.json::${e}`));
   if (vse.length) process.exit(1);
-  console.log(`замок хука: ${dni.length} дн. — хук = карточка, кадры свои`);
+  console.log(`замок хука: ${dni.length} дн. — хук = карточка, у nsДДмес кадры свои`);
 }
