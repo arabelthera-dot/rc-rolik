@@ -6,9 +6,18 @@ import zapasnoj_golos  # п.92: запасной Piper, выключен без 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 GAP = 0.35  # пауза между сегментами, с
 LEAD = 0.15  # голос стартует почти сразу — хук в 1-й секунде
-TRIES = 10  # служба голоса отказывает волнами по несколько минут — окно повторов ≈5,5 мин на сцену (r264)
-BEZ_UDAR = 3  # из TRIES попыток — последние без знаков ударения U+0301: служба на них отдаёт NoAudioReceived (r685, как audiogid.py)
-PUSTO = 3  # звук <1 КБ или <0,3 с — пустой; столько пустых подряд — ошибка с именем дня (п.68)
+# Сцена без голоса не роняет ролик молча (Р765): 1) повтор с растущей паузой; 2) фраза делится по знакам на части,
+# части озвучиваются отдельно и склеиваются; 3) весь день заново запасным голосом того же языка ZAPAS (голос не
+# меняется посреди ролика); 4) Piper, если включён (п.92); иначе — выход с днём, сценой, голосом и ответом службы.
+# Волна отказов NoAudioReceived у ru-RU-DmitryNeural длиннее прежнего окна 10 попыток ≈5,5 мин (r264, 13.11.2026:
+# ns03feb f6, 04feb pyatno), а ru-RU-SvetlanaNeural в ту же минуту отвечала — окно сокращено, дальше части и запасной голос.
+TRIES = 6  # повторы целой фразы: паузы 3, 6, 12, 24, 48 с ≈1,5 мин
+BEZ_UDAR = 2  # из TRIES попыток — последние без знаков ударения U+0301: служба на них отдаёт NoAudioReceived (r685, как audiogid.py)
+TRIES_CHAST = 3  # повторы одной части фразы
+ZAPAS = {"ru-RU-DmitryNeural": "ru-RU-SvetlanaNeural", "ru-RU-SvetlanaNeural": "ru-RU-DmitryNeural"}  # тот же язык
+
+class NetGolosa(Exception):
+    """Служба не дала звук сцены ни целиком, ни по частям; в тексте — последний ответ службы."""
 
 async def synth(text, voice, rate, mp3):
     com = edge_tts.Communicate(text, voice, rate=rate, boundary="WordBoundary")
@@ -96,8 +105,58 @@ def slova(out, segs):
     (out / "voice.vtt").write_text("WEBVTT\nKind: subtitles\nLanguage: ru\n\n" + "\n".join(cue(f, ".") for f in stroki))
     (out / "voice.txt").write_text("".join(" ".join(chisto(w["w"]) for w in sg["words"]) + "\n" for sg in segs))
 
-def main(day):
+def popytka(text, voice, rate, mp3):
+    words = asyncio.run(synth(text, voice, rate, mp3))
+    why = pustoj(mp3, words)
+    if why: raise RuntimeError(f"пустой звук ({why})")
+    return words
+
+def pauza(k, imya, n, e):
+    p = min(3 * 2 ** k, 60) + random.uniform(0, 3)
+    print(f"  {imya}: попытка {k + 1} из {n} — {type(e).__name__} {e}, жду {p:.0f} с", flush=True)
+    time.sleep(p)
+
+def chasti(text):
+    """Фраза -> части по знакам препинания (не короче 3 слов, чтобы не рвать интонацию на каждом слове)."""
+    kusky = [k.strip() for k in re.split(r"(?<=[,.:;!?…—])\s+", text) if k.strip()]
+    out = []
+    for k in kusky:
+        if out and len(out[-1].split()) < 3: out[-1] += " " + k
+        else: out.append(k)
+    return out
+
+def ozvuchit_scenu(sid, text, bez_udar, voice, rate, mp3):
+    """Шаги 1–2: повтор целой фразы, затем по частям. Возвращает (words, bez_udarenij) или NetGolosa."""
+    e = None
+    for k in range(TRIES):  # шаг 1: повтор с растущей паузой (r260, r264)
+        bez = k >= TRIES - BEZ_UDAR or (e is not None and "пустой" in str(e))  # после пустого ответа — без знаков ударения
+        try: return popytka(bez_udar if bez else text, voice, rate, mp3), bez
+        except Exception as e1: e = e1
+        if k < TRIES - 1: pauza(k, sid, TRIES, e)
+    kusky = chasti(bez_udar)  # шаг 2: части без знаков ударения — на них служба отказывает чаще
+    if len(kusky) < 2: raise NetGolosa(f"{type(e).__name__} {e}")
+    print(f"  {sid}: целиком не озвучена — делю на {len(kusky)} части по знакам", flush=True)
+    words, t, spisok = [], 0.0, mp3.with_suffix(".chasti.txt")
+    for n, kus in enumerate(kusky):
+        cm = mp3.with_name(f"{mp3.stem}.ch{n}.mp3")
+        for k in range(TRIES_CHAST):
+            try: ws = popytka(kus, voice, rate, cm); break
+            except Exception as e1: e = e1
+            if k == TRIES_CHAST - 1: raise NetGolosa(f"часть {n + 1} из {len(kusky)} «{kus}»: {type(e).__name__} {e}")
+            pauza(k, f"{sid} часть {n + 1}", TRIES_CHAST, e)
+        words += [{**w, "t": w["t"] + t} for w in ws]
+        t += dur(cm)
+    spisok.write_text("".join(f"file '{mp3.with_name(f'{mp3.stem}.ch{n}.mp3').name}'\n" for n in range(len(kusky))))
+    subprocess.check_call(["ffmpeg", "-y", "-v", "error", "-f", "concat", "-safe", "0", "-i", str(spisok), "-c", "copy", str(mp3)])
+    for n in range(len(kusky)): mp3.with_name(f"{mp3.stem}.ch{n}.mp3").unlink(missing_ok=True)
+    spisok.unlink()
+    print(f"  {sid}: озвучена ПО ЧАСТЯМ ({len(kusky)})", flush=True)
+    return words, True
+
+def main(day, voice=None):
     cfg = json.loads((ROOT / "days" / f"{day}.json").read_text())
+    osnovnoj = cfg["voice"]
+    if voice: cfg["voice"] = voice
     out = ROOT / "public" / "days" / day
     out.mkdir(parents=True, exist_ok=True)
     t = LEAD
@@ -112,30 +171,23 @@ def main(day):
             print(f"  {s['id']}: готова, не переозвучиваю", flush=True)
         else:
             meta.unlink(missing_ok=True)
-            pusto, zap = 0, False
-            for k in range(TRIES):  # повтор с растущей паузой 3, 6, 12, 24, 48, 60… с (r260, r264)
-                bez = k >= TRIES - BEZ_UDAR or pusto > 0  # после пустого ответа — без знаков ударения
-                try:
-                    words = asyncio.run(synth(s["say"] if bez else text, cfg["voice"], cfg["rate"], mp3))
-                    why = pustoj(mp3, words)
-                    if not why: break
-                    pusto += 1
-                    if pusto >= PUSTO:
-                        if zapasnoj_golos.vklyuchen(): zap = True; break
-                        sys.exit(f"{day}: сцена {s['id']} — голос пустой {PUSTO} раза подряд ({why}), озвучка дня остановлена")
-                    e = RuntimeError(why)
-                except Exception as e1:
-                    e = e1
-                    if k == TRIES - 1:
-                        if zapasnoj_golos.vklyuchen(): zap = True; break
-                        sys.exit(f"{day}: сцена {s['id']} — голос не получен за {TRIES} попыток: {type(e).__name__} {e}")
-                p = min(3 * 2 ** k, 60) + random.uniform(0, 3)
-                print(f"  {s['id']}: попытка {k + 1} из {TRIES} — {type(e).__name__} {e}, жду {p:.0f} с", flush=True)
-                time.sleep(p)
+            zap = False
+            try:
+                words, bez = ozvuchit_scenu(s["id"], text, s["say"], cfg["voice"], cfg["rate"], mp3)
+            except NetGolosa as e:
+                zapas = ZAPAS.get(osnovnoj)
+                if not voice and zapas:  # шаг 3: весь день запасным голосом того же языка
+                    print(f"::warning::{day}: сцена {s['id']} — голос {osnovnoj} не получен ({e}); день целиком озвучивается голосом {zapas}", flush=True)
+                    return main(day, zapas)
+                if not zapasnoj_golos.vklyuchen():  # шаг 4 — Piper, иначе точная причина
+                    golosa = osnovnoj + (f", затем {voice}" if voice else "")
+                    sys.exit(f"{day}: сцена {s['id']} — голос не получен ({golosa}; повтор {TRIES} раз, по частям, запасной голос): ответ службы {e}")
+                zap = True
             if zap:  # edge-tts не ответил — Piper; при следующем прогоне сцена снова пойдёт в edge-tts
-                words = zapasnoj_golos.ozvuchit(text, cfg["rate"], mp3); bez = False
+                words = zapasnoj_golos.ozvuchit(text, cfg["rate"], mp3)
                 if pustoj(mp3, words): sys.exit(f"{day}: сцена {s['id']} — и запасной голос пустой ({pustoj(mp3, words)})")
                 print(f"  {s['id']}: озвучена ЗАПАСНЫМ голосом Piper {zapasnoj_golos.GOLOS}", flush=True)
+                bez = False
             if bez: print(f"  {s['id']}: озвучена БЕЗ знаков ударения", flush=True)
             meta.write_text(json.dumps({"key": key, "words": words, "bez_udarenij": bez, **({"zapasnoj": zapasnoj_golos.GOLOS} if zap else {})}, ensure_ascii=False))
         d = dur(mp3)
@@ -168,7 +220,7 @@ def main(day):
     slova(out, segs)
     (out / "day.json").write_text(json.dumps(cfg, ensure_ascii=False, indent=1))
     (out / "timeline.json").write_text(json.dumps({"total": round(total, 3), "segments": segs}, ensure_ascii=False, indent=1))
-    print(f"{day}: {total:.1f} с, сегментов {len(segs)}")
+    print(f"{day}: {total:.1f} с, сегментов {len(segs)}, голос {cfg['voice']}" + (f" (ЗАПАСНОЙ вместо {osnovnoj})" if voice else ""))
     for s in segs:
         print(f"  {s['id']:8s} {s['start']:5.2f} +{s['dur']:.2f}")
 
