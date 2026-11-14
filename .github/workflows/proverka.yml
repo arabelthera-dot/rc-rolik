@@ -5,7 +5,7 @@
 # - scripts/format.mjs --proba — проверка формата ловит брак на образцах;
 # - scripts/*.py — python -m py_compile;
 # - все *.json — разбор python json, все *.yml/*.yaml — разбор yq;
-# - замок хука (r544 п.5, Р536): days/ns*.json — первая сцена = хук утверждённой карточки rc-site, кадры свои.
+# - замок хука (r544 п.5, Р536, Р765): days/*.json — первая сцена = хук карточки rc-site (main или открытой заявки дня), у ns кадры свои.
 name: proverka
 on:
   pull_request:
@@ -67,4 +67,6 @@ jobs:
           done < <(git ls-files -z '*.yml' '*.yaml')
           exit "$rc"
       - name: замок хука
+        env:
+          GITHUB_TOKEN: ${{ github.token }}  # Р765: список открытых заявок rc-site — хук из заявки страницы (r763)
         run: node scripts/zamok-huk.mjs

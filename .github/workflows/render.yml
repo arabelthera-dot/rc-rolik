@@ -15,6 +15,10 @@
 # rc-site main дословно (ручного хука в сценарии нет); нет карточки с хуком — день красный.
 # Откат: убрать задание scenarij, его needs и шаги download-artifact scenarij-* (Р765 отдельно — matrix ns и if
 # «contains(ns)» у шагов download-artifact вместо days, ветку huk-iz-kartochki убрать).
+# Откат: убрать задание scenarij, его needs и шаги download-artifact scenarij-*.
+# Сценарий из заявки страницы (r763, Р763): -f vetka_sajta=<ветка заявки rc-site> — scenarij.mjs берёт карточку, yaml
+# и копию утверждённого из этой ветки (RC_SITE_REF), ролик собирается до слияния страницы; ставит avto.py по открытой
+# заявке дня. По умолчанию main — как раньше. Откат: убрать вход vetka_sajta и строку RC_SITE_REF.
 # Кэш готового ролика (r713 п.60): -f kesh=true — отпечаток sha256 входов ролика (scripts/otpechatok.sh: день, кадры,
 # голос, слои, шрифты, шаблон src/, render.mjs, lock, вариант, формат); тот же отпечаток уже собран — ролик из
 # actions/cache, Remotion не запускается. По умолчанию false — сборка как раньше. Откат: убрать вход kesh и шаги kesh.
@@ -47,6 +51,10 @@ on:
         description: "заставка из 3D-сцены: папка в zastavka3d/ (напр. r7); пусто — обычная сборка роликов"
         required: false
         default: ""
+      vetka_sajta:
+        description: "ветка rc-site для сценария НС (ветка заявки дня, r763); по умолчанию main"
+        required: false
+        default: "main"
       klyuch:
         description: "ключ сценария (ставит avto.yml), только для имени прогона"
         required: false
@@ -129,6 +137,7 @@ jobs:
       - run: npm ci --ignore-scripts
       - env:
           DEN: ${{ matrix.day }}
+          RC_SITE_REF: ${{ inputs.vetka_sajta }}
         run: |
           # Р765: не НС — сценарий из репо, но хук первой сцены дословно из карточки rc-site main
           if ! echo "$DEN" | grep -Eq '^ns[0-9]{2}[a-z]{3}$'; then
@@ -144,7 +153,7 @@ jobs:
           [ -n "$mm" ] || { echo "::error::$DEN: не понять месяц «$m»"; exit 1; }
           key=$(printf '%02d-%s' "$mm" "$dd")
           if ! node scripts/scenarij.mjs "$key"; then
-            echo "::error::$DEN: сценарий не собран из карточки rc-site main src/content/days/ne-sdayutsya/$key.json (причина — строка ✗ выше); старый сценарий не озвучивается, ролика дня нет"
+            echo "::error::$DEN: сценарий не собран из карточки rc-site ${RC_SITE_REF:-main} src/content/days/ne-sdayutsya/$key.json (причина — строка ✗ выше); старый сценарий не озвучивается, ролика дня нет"
             exit 1
           fi
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
