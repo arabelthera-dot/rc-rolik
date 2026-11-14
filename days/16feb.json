@@ -1,0 +1,98 @@
+{
+ "id": "16feb",
+ "source_md": "rc-site src/content/dni-shablon/izobreteniya/02-16.yaml",
+ "voice": "ru-RU-DmitryNeural",
+ "rate": "+18%",
+ "images": {
+  "zapusk": {
+   "src": "kadry/16feb/day-16feb-goskatalog-30458020.jpg",
+   "crop": [
+    0,
+    0,
+    1,
+    1
+   ],
+   "parallax": false
+  },
+  "dirizhabl": {
+   "src": "kadry/16feb/day-16feb-goskatalog-20377464.jpg",
+   "crop": [
+    0,
+    0,
+    1,
+    1
+   ],
+   "parallax": false
+  },
+  "zond": {
+   "src": "kadry/16feb/day-16feb-goskatalog-21073072.jpg",
+   "crop": [
+    0,
+    0,
+    1,
+    1
+   ],
+   "parallax": false
+  },
+  "krasin": {
+   "src": "kadry/16feb/day-16feb-goskatalog-9624853.jpg",
+   "crop": [
+    0,
+    0,
+    1,
+    1
+   ],
+   "parallax": false
+  }
+ },
+ "segments": [
+  {
+   "id": "hook",
+   "say": "Шар Молчанова поднялся на десять километров и сам рассказал по радио, что творится наверху, — так начался прогноз погоды.",
+   "image": "zapusk",
+   "fx": "photo"
+  },
+  {
+   "id": "svodka",
+   "say": "Через тридцать две минуты после старта зонда в Москву ушла первая в мире сводка погоды с высоты.",
+   "show": "Через 32 минуты после старта зонда в Москву ушла первая в мире сводка погоды с высоты.",
+   "image": "zond",
+   "fx": "photo"
+  },
+  {
+   "id": "cepelin",
+   "say": "Зонды Молчанова пускали с «Графа Цеппелина» над Арктикой, а шар надували водородом дирижабля.",
+   "image": "dirizhabl",
+   "fx": "photo"
+  },
+  {
+   "id": "tridcat",
+   "say": "Зонд Молчанова почти тридцать лет работал без переделок, а сменщика «Волну» пришлось переделывать.",
+   "show": "Зонд Молчанова почти 30 лет работал без переделок, а сменщика «Волну» пришлось переделывать.",
+   "image": "krasin",
+   "fx": "photo"
+  },
+  {
+   "id": "vosemsot",
+   "say": "Каждый день мир выпускает около восьмисот радиозондов — потомков зонда из Павловска.",
+   "show": "Каждый день мир выпускает около 800 радиозондов — потомков зонда из Павловска.",
+   "image": "zapusk",
+   "fx": "photo"
+  },
+  {
+   "id": "cta",
+   "say": "Смотри день целиком на сайте рашн-цивилизейшн точка ру.",
+   "show": "Смотри день целиком на russian-civilization.ru",
+   "image": null,
+   "fx": "endcard",
+   "labels": {
+    "deco": "none"
+   }
+  }
+ ],
+ "sajt": {
+  "muzei": "izobreteniya",
+  "reestr": "izobreteniya",
+  "imya": "16feb-radiozond"
+ }
+}
