@@ -162,7 +162,7 @@ jobs:
       always() && inputs.ozvuchka && needs.plan.result == 'success'
       && needs.scenarij.result != 'cancelled'
     runs-on: ubuntu-latest
-    timeout-minutes: 45  # до 10 попыток по ≈5,5 мин на сцену (r264)
+    timeout-minutes: 45  # повтор ≈1,5 мин на сцену, части, затем день запасным голосом (Р765)
     strategy:
       fail-fast: false
       max-parallel: 2  # служба голоса не любит разом много заданий (r260, r264)
