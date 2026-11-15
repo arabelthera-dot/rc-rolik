@@ -66,6 +66,15 @@ def pustoj(mp3, words):
     except Exception: return "ffprobe не читает файл"
     return f"{d:.2f} с" if d < 0.3 else ""
 
+def slov_v_tekste(text):
+    """Слова текста так, как их считает служба: без отдельных знаков препинания."""
+    return len([w for w in text.split() if re.search(r"\w", w)])
+
+def polnyj(slov_golos, slov_tekst):
+    """Мерка «озвучено полностью» (как в skleika аудиогида): слов от службы ≥ 0,9 слов текста.
+    Неполный кусок не берётся из кэша (Р784) — при следующем прогоне идёт в edge-tts заново."""
+    return slov_golos >= 0.9 * slov_tekst
+
 def ts(x, sep):
     ms = int(round(x * 1000)); return f"{ms // 3600000:02d}:{ms // 60000 % 60:02d}:{ms // 1000 % 60:02d}{sep}{ms % 1000:03d}"
 
@@ -161,15 +170,19 @@ def main(day, voice=None):
     out.mkdir(parents=True, exist_ok=True)
     t = LEAD
     segs, parts = [], []
+    iz_kesha = zanovo = 0  # Р784: сколько сцен взято из кэша прошлого прогона, сколько озвучено в edge-tts
     for i, s in enumerate(cfg["segments"]):
         mp3, meta = out / f"seg{i}.mp3", out / f"seg{i}.json"
         text = udar(s["say"])
         key = hashlib.sha1(json.dumps([text, cfg["voice"], cfg["rate"]], ensure_ascii=False).encode()).hexdigest()
         old = json.loads(meta.read_text()) if meta.exists() else {}
-        if mp3.exists() and old.get("key") == key and not old.get("zapasnoj") and not pustoj(mp3, old["words"]):  # сцена уже озвучена тем же текстом — при перезапуске не переозвучиваем (r264)
+        if (mp3.exists() and old.get("key") == key and not old.get("zapasnoj") and not pustoj(mp3, old["words"])
+                and polnyj(len(old["words"]), slov_v_tekste(s["say"]))):  # сцена уже озвучена тем же текстом — при перезапуске не переозвучиваем (r264)
             words = old["words"]
+            iz_kesha += 1
             print(f"  {s['id']}: готова, не переозвучиваю", flush=True)
         else:
+            zanovo += 1
             meta.unlink(missing_ok=True)
             zap = False
             try:
@@ -223,6 +236,7 @@ def main(day, voice=None):
     print(f"{day}: {total:.1f} с, сегментов {len(segs)}, голос {cfg['voice']}" + (f" (ЗАПАСНОЙ вместо {osnovnoj})" if voice else ""))
     for s in segs:
         print(f"  {s['id']:8s} {s['start']:5.2f} +{s['dur']:.2f}")
+    print(f"{day}: сцен из кэша {iz_kesha}, озвучено заново {zanovo}")
 
 if __name__ == "__main__":
     main(sys.argv[1])
