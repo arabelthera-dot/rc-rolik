@@ -1,9 +1,9 @@
 """Озвучка аудиогида (r310): transcript-yaml -> out/audiogid/<den>.mp3 + <den>.json (длительности абзацев).
 Голос, ударения и повторы — те же, что у роликов (scripts/tts.py, udareniya.json). Абзацы озвучиваются по одному на машину.
 Вход: yaml дня сайта (audioguide.transcript) или отдельный yaml с верхним transcript; абзацы — строки с <p>…</p>."""
-import asyncio, json, os, sys, re, subprocess, pathlib, random, time, html
+import asyncio, json, os, sys, re, subprocess, pathlib, random, time, html, hashlib
 import yaml
-from tts import synth, udar, dur, TRIES
+from tts import synth, udar, dur, TRIES, slov_v_tekste, polnyj
 import zvuk
 
 GAP = 0.6  # пауза между абзацами, с
@@ -17,6 +17,16 @@ def abzacy(path):
         sys.exit(f"{path}: нет transcript (ни audioguide.transcript, ни transcript)")
     den = str(d.get("den") or d.get("date") or pathlib.Path(path).stem)
     return den, [html.unescape(re.sub(r"<[^>]+>", "", p)).strip().strip("«»").strip() for p in tr]
+
+def klyuch(path, i, voice, rate):
+    """Ключ кэша абзаца (Р784): хэш текста с ударениями, голоса, темпа и обрезки пауз — тот же ключ, тот же звук."""
+    s = abzacy(path)[1][int(i)]
+    return hashlib.sha256(json.dumps([udar(s), s, voice, rate, PAUZY], ensure_ascii=False).encode()).hexdigest()
+
+def v_kesh(outdir, i):
+    """Абзац озвучен полностью (та же мерка, что в skleika) — его можно класть в кэш (Р784)."""
+    m = json.loads((pathlib.Path(outdir) / f"p{i}.json").read_text())
+    return polnyj(m["slov_golos"], m["slov_tekst"])
 
 def abzac(path, i, voice, rate, outdir):
     """Один абзац -> p<i>.mp3 + p<i>.json. Каждый абзац — на своей машине (matrix в audiogid.yml):
@@ -41,7 +51,7 @@ def abzac(path, i, voice, rate, outdir):
             time.sleep(p)
     if PAUZY: zvuk.pauzy(mp3)  # до замера длительности: начала абзацев в <den>.json — по сжатому звуку
     # все ли фразы озвучены: число слов от службы против слов в тексте
-    src = len([w for w in s.split() if re.search(r"\w", w)])
+    src = slov_v_tekste(s)
     d = dur(mp3)
     (out / f"p{i}.json").write_text(json.dumps({"i": i, "dur": round(d, 2), "slov_tekst": src, "slov_golos": len(words), "bez_udarenij": bez}))
     print(f"  абзац {i}: {d:5.1f} с, слов {len(words)}/{src}" + (" — БЕЗ знаков ударения" if bez else ""), flush=True)
@@ -66,7 +76,7 @@ def skleika(path, voice, rate, outdir, den=""):
     zvuk.gromkost(full)  # r713 п.91: одна громкость -16 LUFS (EBU R128), формат прежний — mp3 24 кГц моно 64k
     total = dur(full)
     (out / f"{den}.json").write_text(json.dumps({"den": den, "voice": voice, "rate": rate, "total": round(total, 2), "abzacy": segs}, ensure_ascii=False, indent=1))
-    plohie = [s["i"] for s in segs if s["slov_golos"] < 0.9 * s["slov_tekst"]]
+    plohie = [s["i"] for s in segs if not polnyj(s["slov_golos"], s["slov_tekst"])]
     print(f"{den}: {total:.1f} с, абзацев {len(segs)}")
     if plohie:
         sys.exit(f"абзацы озвучены не полностью: {plohie}")
@@ -75,8 +85,12 @@ if __name__ == "__main__":
     # audiogid.py chislo <yaml>                       -> номера абзацев JSON-списком (для matrix)
     # audiogid.py abzac <yaml> <i> <голос> <темп> <папка>
     # audiogid.py skleika <yaml> <голос> <темп> <папка> [<день>]
+    # audiogid.py klyuch <yaml> <i> <голос> <темп>   -> ключ кэша абзаца (Р784)
+    # audiogid.py v_kesh <папка> <i>                  -> true/false: абзац полный, класть в кэш
     cmd, *a = sys.argv[1:]
     if cmd == "chislo": print(json.dumps(list(range(len(abzacy(a[0])[1])))))
+    elif cmd == "klyuch": print(klyuch(*a))
+    elif cmd == "v_kesh": print("true" if v_kesh(*a) else "false")
     elif cmd == "abzac": abzac(*a)
     elif cmd == "skleika": skleika(*a)
     else: sys.exit(f"неизвестная команда {cmd}")

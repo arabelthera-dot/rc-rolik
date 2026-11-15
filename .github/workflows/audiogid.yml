@@ -126,7 +126,38 @@ jobs:
           echo "den=$(basename "$PUT" .yaml)" >> "$GITHUB_OUTPUT"
       # ffmpeg закреплённой версии, один шаг на весь rc-rolik (r544 п.6): apt вис на 20–36 мин (r277, r283)
       - uses: ./.github/actions/ffmpeg
-      - run: python scripts/audiogid.py abzac '${{ steps.vhod.outputs.f }}' ${{ matrix.i }} "$GOLOS" "$TEMP" out/audiogid
+      # кэш абзаца (Р784): ключ — хэш текста, голоса, темпа и пауз; тот же абзац при новом прогоне и перезапуске
+      # берётся готовым, в edge-tts идут только за недостающими (brak-stranic п. 14, 28); неполный в кэш не кладётся
+      - id: klyuch
+        env:
+          F: ${{ steps.vhod.outputs.f }}
+          I: ${{ matrix.i }}
+        run: echo "k=$(python scripts/audiogid.py klyuch "$F" "$I" "$GOLOS" "$TEMP")" >> "$GITHUB_OUTPUT"
+      - id: kesh
+        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: |
+            out/audiogid/p${{ matrix.i }}.mp3
+            out/audiogid/p${{ matrix.i }}.json
+          key: audiogid-abzac-${{ steps.klyuch.outputs.k }}
+      - if: steps.kesh.outputs.cache-hit == 'true'
+        env:
+          I: ${{ matrix.i }}
+        run: echo "абзац $I — из кэша, в edge-tts не хожу" | tee -a "$GITHUB_STEP_SUMMARY"
+      - if: steps.kesh.outputs.cache-hit != 'true'
+        run: python scripts/audiogid.py abzac '${{ steps.vhod.outputs.f }}' ${{ matrix.i }} "$GOLOS" "$TEMP" out/audiogid
+      - id: polnyj
+        if: steps.kesh.outputs.cache-hit != 'true'
+        env:
+          I: ${{ matrix.i }}
+        run: echo "da=$(python scripts/audiogid.py v_kesh out/audiogid "$I")" >> "$GITHUB_OUTPUT"
+      - if: steps.polnyj.outputs.da == 'true'
+        uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: |
+            out/audiogid/p${{ matrix.i }}.mp3
+            out/audiogid/p${{ matrix.i }}.json
+          key: audiogid-abzac-${{ steps.klyuch.outputs.k }}
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: abzac-${{ matrix.i }}

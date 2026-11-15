@@ -197,7 +197,8 @@ jobs:
       # ffmpeg закреплённой версии, один шаг на весь rc-rolik (r544 п.6): apt вис на 20–36 мин (r277, r283)
       - uses: ./.github/actions/ffmpeg
       - run: pip install -q edge-tts==7.3.1 numpy==2.4.6 scipy==1.17.1
-      # озвученные сцены (seg*.mp3 + seg*.json с ключом текста) переживают перезапуск: tts.py их не переозвучивает (r264)
+      # озвученные сцены (seg*.mp3 + seg*.json с ключом текста) переживают перезапуск: tts.py их не переозвучивает (r264);
+      # неполная сцена (слов от службы < 0,9 слов текста, мерка skleika гида) из кэша не берётся — идёт в edge-tts заново (Р784)
       - uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
           path: public/days/${{ matrix.day }}/seg*
