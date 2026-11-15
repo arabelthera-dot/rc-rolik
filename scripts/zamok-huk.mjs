@@ -10,7 +10,8 @@ import { denSajta } from './huk-iz-kartochki.mjs';
 
 const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..');
 const MES = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
-const RAW = 'https://raw.githubusercontent.com/arabelthera-dot/rc-site/main';
+const RAW = 'https://raw.githubusercontent.com/arabelthera-dot/rc-site';
+const REF = process.env.RC_SITE_REF || 'main'; // r763: RC_SITE_REF — ветка заявки дня rc-site
 
 // точка в конце, ё/е, знак ударения и пробелы не считаются расхождением; слова, порядок и кавычки — считаются
 export const norm = (s) => String(s ?? '').normalize('NFD').replace(/́/g, '').normalize('NFC')
@@ -22,15 +23,41 @@ export const kluchDnya = (id) => {
   return `${String(MES.indexOf(m[2]) + 1).padStart(2, '0')}-${m[1].padStart(2, '0')}`;
 };
 
-export async function kartochka(key, muzei = 'ne-sdayutsya') {
+export async function kartochka(key, muzei = 'ne-sdayutsya', ref = REF) {
   if (process.env.RC_SITE) {
     const f = path.join(process.env.RC_SITE, 'src/content/days', muzei, `${key}.json`);
     return fs.existsSync(f) ? JSON.parse(fs.readFileSync(f, 'utf8')) : null;
   }
-  const r = await fetch(`${RAW}/src/content/days/${muzei}/${key}.json`);
+  const r = await fetch(`${RAW}/${ref}/src/content/days/${muzei}/${key}.json`);
   if (r.status === 404) return null;
-  if (!r.ok) throw new Error(`rc-site ${key}.json: HTTP ${r.status}`);
+  if (!r.ok) throw new Error(`rc-site ${ref} ${key}.json: HTTP ${r.status}`);
   return r.json();
+}
+
+// ветки открытых заявок rc-site (не черновики, не из чужих копий) — как zayavki() в scripts/avto.py (r763)
+let zayavki;
+async function vetkiZayavok() {
+  if (zayavki) return zayavki;
+  const h = process.env.GITHUB_TOKEN ? { authorization: `Bearer ${process.env.GITHUB_TOKEN}` } : {};
+  const r = await fetch('https://api.github.com/repos/arabelthera-dot/rc-site/pulls?state=open&per_page=100', { headers: h });
+  if (!r.ok) throw new Error(`rc-site: список открытых заявок HTTP ${r.status}`);
+  zayavki = (await r.json()).filter((z) => !z.draft && z.head?.repo?.full_name === 'arabelthera-dot/rc-site').map((z) => z.head.ref);
+  return zayavki;
+}
+
+// хуки карточки дня: сначала из REF (main), затем из открытых заявок rc-site — ролик собирается из заявки страницы
+// до её слияния (r763), такой сценарий уже стоит в main rc-rolik раньше карточки в main rc-site (04feb, r764)
+export async function hukiKartochki(key, muzei, tekst) {
+  const chist = (k) => String(k?.hook ?? '').replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim();
+  const out = [];
+  const glavnaya = chist(await kartochka(key, muzei));
+  if (glavnaya) out.push({ ref: REF, huk: glavnaya });
+  if (process.env.RC_SITE || process.env.RC_SITE_REF || (glavnaya && norm(tekst) === norm(glavnaya))) return out;
+  for (const ref of await vetkiZayavok()) {
+    const huk = chist(await kartochka(key, muzei, ref));
+    if (huk && !out.some((x) => x.huk === huk)) out.push({ ref, huk });
+  }
+  return out;
 }
 
 export async function zamokDnya(id) {
@@ -39,13 +66,13 @@ export async function zamokDnya(id) {
   const den = denSajta(id, cfg);
   if (!den) return [`${id}: не понять музей и дату дня сайта (нет sajt.muzei, source_md и имени ДДмес)`];
   const { muzei, key } = den;
-  const k = await kartochka(key, muzei);
-  if (!k?.hook) return [`${id}: нет утверждённой карточки с хуком rc-site src/content/days/${muzei}/${key}.json`];
   const hook = cfg.segments?.[0];
+  const huki = await hukiKartochki(key, muzei, hook?.show ?? hook?.say);
+  if (!huki.length) return [`${id}: нет утверждённой карточки с хуком rc-site src/content/days/${muzei}/${key}.json`];
   if (hook?.id !== 'hook') oshibki.push(`${id}: первая сцена не hook`);
   else {
     const tekst = hook.show ?? hook.say;
-    if (norm(tekst) !== norm(k.hook)) oshibki.push(`${id}: хук ролика «${tekst}» ≠ хук карточки ${key} «${k.hook}»`);
+    if (!huki.some((x) => norm(tekst) === norm(x.huk))) oshibki.push(`${id}: хук ролика «${tekst}» ≠ хук карточки ${key} «${huki[0].huk}» (${huki.map((x) => x.ref).join(', ')})`);
   }
   if (kluchDnya(id)) for (const [imya, im] of Object.entries(cfg.images || {})) {
     if (!String(im.src).startsWith(`kadry/${id}/`)) oshibki.push(`${id}: кадр «${imya}» ${im.src} не из kadry/${id}/ — кадры только этого дня`);

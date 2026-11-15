@@ -8,7 +8,7 @@
 // Откат: удалить файл и ветку «не НС» в задании scenarij render.yml.
 import fs from 'node:fs';
 import path from 'node:path';
-import { kartochka, norm } from './zamok-huk.mjs';
+import { hukiKartochki, norm } from './zamok-huk.mjs';
 
 const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..');
 const MES = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
@@ -56,12 +56,14 @@ export async function hukIzKartochki(id) {
   const cfg = JSON.parse(syroj);
   const den = denSajta(id, cfg);
   if (!den) return { id, otkaz: 'не понять музей и дату дня (нет sajt.muzei, source_md и имени ДДмес)' };
-  const k = await kartochka(den.key, den.muzei);
-  const huk = String(k?.hook ?? '').replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim();
+  const huki = await hukiKartochki(den.key, den.muzei, cfg.segments[0].show ?? cfg.segments[0].say);
+  // несколько карточек (main и открытые заявки rc-site, r763) — та, что ближе к сценарию: он собран для её страницы
+  const huk = huki.reduce((a, x) => (pohozhe(cfg.segments[0].show ?? cfg.segments[0].say, x.huk) > pohozhe(cfg.segments[0].show ?? cfg.segments[0].say, a?.huk ?? '') ? x : a), huki[0])?.huk;
   if (!huk) return { id, ...den, otkaz: `нет поля hook в карточке rc-site src/content/days/${den.muzei}/${den.key}.json` };
   const s0 = cfg.segments[0];
   const bylo = s0.show ?? s0.say;
-  if (s0.id === 'hook' && norm(bylo) === norm(huk)) return { id, ...den, huk, izmenen: false };
+  // хук карточки из открытой заявки rc-site (r763) тоже карточка: такой сценарий не переписывается хуком main
+  if (s0.id === 'hook' && huki.some((x) => norm(bylo) === norm(x.huk))) return { id, ...den, huk, izmenen: false };
   // правка в тексте файла, а не пересборкой JSON: остальной сценарий остаётся байт в байт
   const nachalo = syroj.indexOf('"segments"');
   let tekst;
