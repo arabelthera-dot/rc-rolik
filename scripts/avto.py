@@ -5,6 +5,9 @@
 2) сценарий ролика days/<id>.json (id: изобретения 02feb, НС ns02feb) с полем sajt — render.yml; ключ = sha1 файла.
    У НС сценарий собирает в облаке scripts/scenarij.mjs (r699), поэтому ключ — sha1 того, из чего он собран:
    карточка src/content/days/ne-sdayutsya/ММ-ДД.json + yaml страницы + копия src/data/utverzhdeno/ne-sdayutsya/ММ-ДД.json (если есть).
+   Блок video: yaml в ключ не входит — scenarij.mjs его не читает, а пишут его после первой сборки (Р790 п.5: ns06feb).
+   Ролик НС ждёт кадры: собирается, только когда в yaml adres: den — с ним сайт уже держит замок кадров дня
+   (zamokObshchiy, src/lib/den-obshchee.mjs rc-site: не меньше KADROV_MIN кадров). Без adres: den — «ролик ждёт».
    Источник — день сайта из п.1 (и для НС — изменённые за окно карточка или копия утверждённого) или свой days/*.json.
 3) упавший прогон audiogid/render с ключом: попытка 1–2 — gh run rerun --failed (пауза ≥ 25 мин — PAUZA);
    после 3-й — карточка с первой строкой ошибки (печатает строку KARTOCHKA <run> <текст>).
@@ -53,12 +56,22 @@ def chitalka(site, ref=None):
     return chit
 
 # ключ ролика НС: изменилось любое из того, из чего scenarij.mjs собирает сценарий, — новый прогон
-def kluch_ns(chit, i):
+def kluch_ns(chit, i, s_video=False):
     key = f"{MES.index(i[4:]) + 1:02d}-{i[2:4]}"
     chasti = [f"src/content/days/ne-sdayutsya/{key}.json",
               f"src/content/dni-shablon/ne-sdayutsya/{key}.yaml",
               f"src/data/utverzhdeno/ne-sdayutsya/{key}.json"]
-    return kluch(b"".join(rel.encode() + b"\0" + b for rel in chasti if (b := chit(rel)) is not None))
+    return kluch(b"".join(rel.encode() + b"\0" + (bez_video(b) if rel.endswith(".yaml") and not s_video else b)
+                          for rel in chasti if (b := chit(rel)) is not None))
+
+# yaml дня без верхнего блока video: (ключ ролика НС от него не зависит, Р790 п.5)
+def bez_video(b):
+    return re.sub(rb"(?m)^video:.*\n(?:(?:[ \t-].*)?\n)*", b"", b)
+
+# кадры дня на месте: в yaml НС adres: den — замок кадров сайта уже проверен (Р790 п.5)
+def kadry_na_meste(chit, i):
+    b = chit(f"src/content/dni-shablon/ne-sdayutsya/{MES.index(i[4:]) + 1:02d}-{i[2:4]}.yaml")
+    return b is not None and (yaml.safe_load(b.decode()) or {}).get("adres") == "den"
 
 # открытые заявки дней rc-site из этого же репо: [(день, ветка, читалка)] — ветка приносится в refs/zayavki/<N>
 def zayavki(site):
@@ -125,7 +138,12 @@ def main(site, okno, dni):
             print(f"# {i}: нет сценария days/{i}.json — ролика нет", file=sys.stderr); continue
         if not sj and not (ns and vetka != "main"):
             print(f"# {i}: в days/{i}.json нет sajt — ролик на сайт не идёт", file=sys.stderr); continue
+        if ns and not kadry_na_meste(chit, i):
+            print(f"# {i} ({vetka}): в yaml нет adres: den — кадры не на месте, ролик ждёт", file=sys.stderr); continue
         z, k = f"{i}:{sj.get('variant', 'A')}", kluch_ns(chit, i) if ns else kluch(p.read_bytes())
+        # прежний ключ (с блоком video, до Р790) уже собран из того же — второй раз не собирать
+        if ns and f"render {z} {kluch_ns(chit, i, s_video=True)}" in imena:
+            continue
         if f"render {z} {k}" not in imena:
             imena.add(f"render {z} {k}")
             v = f" -f vetka_sajta={vetka}" if ns and vetka != "main" else ""
