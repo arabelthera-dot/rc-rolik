@@ -30,8 +30,10 @@ on:
       pauzy:
         description: "1 — обрезать тишину по краям абзацев и сжать паузы > 0,7 с (r713 п.64, scripts/zvuk.py)"
         default: "0"
+# По одному прогону на день (Р789): общая группа держала в очереди один прогон, остальные GitHub отменял —
+# 17 из 59 отменены (16.11). Повтор того же дня по-прежнему ждёт свой прогон.
 concurrency:
-  group: audiogid  # прогоны по одному (r260)
+  group: audiogid-${{ inputs.put }}
   cancel-in-progress: false
 env:
   GOLOS: ${{ inputs.golos || 'ru-RU-DmitryNeural' }}
@@ -78,6 +80,12 @@ jobs:
           echo "den=$(basename "$PUT" .yaml)" >> "$GITHUB_OUTPUT"
       - id: n
         run: echo "abzacy=$(python scripts/audiogid.py chislo '${{ steps.vhod.outputs.f }}')" >> "$GITHUB_OUTPUT"
+      - if: inputs.vetka_sajta != ''
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: vhod
+          path: rc-site/
+          retention-days: 1
   abzac:
     needs: razbor
     runs-on: ubuntu-latest
@@ -102,15 +110,12 @@ jobs:
           python-version: "3.11"
       - run: pip install -q edge-tts==7.3.1 pyyaml==6.0.2
       # карточка дня с ветки сайта — штатным checkout, а не curl по raw-ссылке (r544 п.6, аудит r530 п.62)
+      # yaml дня — из razbor (Р789): ветку страницы автослияние удаляет, пока идут абзацы, и checkout падал (git exit 1)
       - if: inputs.vetka_sajta != ''
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
-          repository: arabelthera-dot/rc-site
-          ref: ${{ inputs.vetka_sajta }}
+          name: vhod
           path: rc-site
-          sparse-checkout: ${{ inputs.put }}
-          sparse-checkout-cone-mode: false
-          persist-credentials: false
       - id: vhod
         env:
           PUT: ${{ inputs.put }}
@@ -176,15 +181,12 @@ jobs:
           python-version: "3.11"
       - run: pip install -q edge-tts==7.3.1 pyyaml==6.0.2
       # карточка дня с ветки сайта — штатным checkout, а не curl по raw-ссылке (r544 п.6, аудит r530 п.62)
+      # yaml дня — из razbor (Р789): ветку страницы автослияние удаляет, пока идут абзацы, и checkout падал (git exit 1)
       - if: inputs.vetka_sajta != ''
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
-          repository: arabelthera-dot/rc-site
-          ref: ${{ inputs.vetka_sajta }}
+          name: vhod
           path: rc-site
-          sparse-checkout: ${{ inputs.put }}
-          sparse-checkout-cone-mode: false
-          persist-credentials: false
       - id: vhod
         env:
           PUT: ${{ inputs.put }}
