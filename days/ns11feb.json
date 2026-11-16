@@ -85,6 +85,10 @@
       ]
     },
     "k3": {
+      "src": "kadry/ns11feb/02-11-goskatalog-12318492.jpg",
+      "parallax": false
+    },
+    "k4": {
       "src": "kadry/ns11feb/02-11-goskatalog-5982145.jpg",
       "parallax": false,
       "crop": [
@@ -94,16 +98,12 @@
         0.846
       ]
     },
-    "k4": {
+    "k5": {
       "src": "kadry/ns11feb/02-11-goskatalog-5981873.jpg",
       "parallax": false
     },
-    "k5": {
-      "src": "kadry/ns11feb/02-11-goskatalog-5570809.jpg",
-      "parallax": false
-    },
     "k6": {
-      "src": "kadry/ns11feb/02-11-goskatalog-12318492.jpg",
+      "src": "kadry/ns11feb/02-11-goskatalog-5570809.jpg",
       "parallax": false
     },
     "k7": {
