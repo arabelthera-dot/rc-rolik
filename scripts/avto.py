@@ -8,6 +8,9 @@
    Источник — день сайта из п.1 (и для НС — изменённые за окно карточка или копия утверждённого) или свой days/*.json.
 3) упавший прогон audiogid/render с ключом: попытка 1–2 — gh run rerun --failed (пауза ≥ 25 мин — PAUZA);
    после 3-й — карточка с первой строкой ошибки (печатает строку KARTOCHKA <run> <текст>).
+   Прогон без ключа (запустил помощник: day.sh, gh workflow run audiogid.yml — имя в два слова) — один перезапуск
+   (attempt 1, пауза PAUZA, не старше 6 ч), только если в журнале отказ сети или озвучки edge-tts (SET), а не сценария,
+   и тот же день после него не запускали заново (Р789: ns24feb, ns26feb 15.11 лежали сутки).
 4) открытые заявки дней rc-site (r763, Р763): заявка из этого же репо меняет yaml страницы дня — гид и ролик
    по ветке заявки (audiogid.yml vetka_sajta=<ветка>, render.yml vetka_sajta=<ветка> для НС) сразу, до слияния.
    Ключ тот же, что посчитается на main после слияния, — второй раз после слияния не запускается. Ролику НС свой
@@ -24,6 +27,10 @@ PAUZA = 25 * 60  # перезапуск — не раньше чем через 
 REPO = "arabelthera-dot/rc-rolik"
 SITE = "arabelthera-dot/rc-site"
 DEN = r"src/content/dni-shablon/([a-z-]+/\d\d-\d\d)\.yaml"
+# отказ сети или озвучки edge-tts — повтор помогает; ошибка сценария или проверки — нет (Р789)
+SET = re.compile(r"NoAudioReceived|голос не получен|озвучены не полностью|WSServerHandshakeError|ClientConnectorError"
+                 r"|ServerDisconnected|Connection (?:reset|refused|aborted)|ETIMEDOUT|ECONNRESET|EAI_AGAIN"
+                 r"|Could not resolve host|HTTP Error 50[234]|50[234] (?:Bad Gateway|Service Unavailable|Gateway Time)")
 
 def sh(*a, cwd=None):
     return subprocess.run(a, cwd=cwd, check=True, capture_output=True, text=True).stdout
@@ -137,6 +144,22 @@ def main(site, okno, dni):
                 print(f"gh run rerun {r['databaseId']} --failed -R {REPO}")
         else:
             print(f"KARTOCHKA {r['databaseId']} {r['displayTitle']}")
+    # прогон помощника без ключа: один перезапуск, если упал на сети или озвучке (Р789)
+    for r in ag + rn:
+        if r["status"] != "completed" or r["conclusion"] != "failure" or r["attempt"] != 1 \
+                or len(r["displayTitle"].split()) >= 3:
+            continue
+        t = time.mktime(time.strptime(r["updatedAt"], "%Y-%m-%dT%H:%M:%SZ")) - time.timezone
+        if not PAUZA <= time.time() - t <= 6 * 3600:
+            continue
+        if any(o["displayTitle"].split()[:2] == r["displayTitle"].split()[:2] and o["databaseId"] > r["databaseId"] for o in ag + rn):
+            continue  # день уже запустили заново
+        zhurnal = subprocess.run(["gh", "run", "view", str(r["databaseId"]), "-R", REPO, "--log-failed"],
+                                 capture_output=True, text=True).stdout
+        if SET.search(zhurnal):
+            print(f"gh run rerun {r['databaseId']} --failed -R {REPO}")
+        else:
+            print(f"# {r['databaseId']} {r['displayTitle'].strip()}: упал не на сети и не на озвучке — не перезапускаю", file=sys.stderr)
 
 if __name__ == "__main__":
     main(sys.argv[1], sys.argv[2], sys.argv[3:])
