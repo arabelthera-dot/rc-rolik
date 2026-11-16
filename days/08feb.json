@@ -33,6 +33,26 @@
     0.68
    ],
    "parallax": false
+  },
+  "piknometr": {
+   "src": "kadry/08feb/day-08feb-goskatalog-26901692.jpg",
+   "crop": [
+    0,
+    0,
+    1,
+    1
+   ],
+   "parallax": false
+  },
+  "tablica1871": {
+   "src": "kadry/08feb/day-08feb-goskatalog-46905582.jpg",
+   "crop": [
+    0,
+    0,
+    1,
+    1
+   ],
+   "parallax": false
   }
  },
  "segments": [
@@ -51,14 +71,14 @@
   {
    "id": "galliy",
    "say": "Не держа в руках ни крупинки галлия, Менделеев поправил его первооткрывателя — и оказался прав.",
-   "image": "tablica",
+   "image": "piknometr",
    "fx": "photo"
   },
   {
    "id": "germaniy",
    "say": "Менделеев предсказал вес экасилиция: семьдесят два. Через пятнадцать лет германий взвесили — семьдесят две целых тридцать две сотых.",
    "show": "Менделеев предсказал вес экасилиция: 72. Через 15 лет германий взвесили — 72,32.",
-   "image": "tablica",
+   "image": "tablica1871",
    "fx": "photo"
   },
   {
