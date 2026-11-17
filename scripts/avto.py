@@ -95,14 +95,26 @@ def rid(muzei, key):
     mm, dd = key.split("-")
     return ("ns" if muzei == "ne-sdayutsya" else "") + dd + MES[int(mm) - 1]
 
+# Р804 (17.11): хук ролика изобретений huk-iz-kartochki.mjs берёт в облаке из карточки rc-site src/content/days/izobreteniya/ММ-ДД.json;
+# хук карточки не тот, что в сценарии, — к ключу добавляется хук, ролик пересобирается. Совпал — ключ прежний, ничего не пересобирается.
+def huk_kartochki(chit, i):
+    m = re.fullmatch(r"(\d\d)([a-z]{3})", i)
+    b = chit(f"src/content/days/izobreteniya/{MES.index(m[2]) + 1:02d}-{m[1]}.json") if m and m[2] in MES else None
+    return (json.loads(b).get("hook") or "").strip() if b else ""
+
+def kluch_izob(chit, p):
+    b, h = p.read_bytes(), huk_kartochki(chit, p.stem)
+    norm = lambda t: " ".join(t.split())
+    return kluch(b) if not h or norm(h) in norm(b.decode()) else kluch(b + h.encode())
+
 def main(site, okno, dni):
     site = pathlib.Path(site)
     dni_rukami = bool(dni)
     if not dni:
         f = sh("git", "log", f"--since={okno}", "--name-only", "--format=", "--", "src/content/dni-shablon/",
-               "src/content/days/ne-sdayutsya/", "src/data/utverzhdeno/ne-sdayutsya/", cwd=site)
+               "src/content/days/ne-sdayutsya/", "src/data/utverzhdeno/ne-sdayutsya/", "src/content/days/izobreteniya/", cwd=site)
         dni = sorted({m.group(1) for m in re.finditer(DEN, f)}
-                     | {f"ne-sdayutsya/{m.group(1)}" for m in re.finditer(r"src/(?:content/days|data/utverzhdeno)/ne-sdayutsya/(\d\d-\d\d)\.json", f)})
+                     | {f"{m.group(1)}/{m.group(2)}" for m in re.finditer(r"src/(?:content/days|data/utverzhdeno)/(ne-sdayutsya|izobreteniya)/(\d\d-\d\d)\.json", f)})
         f = sh("git", "log", f"--since={okno}", "--name-only", "--format=", "--", "days/", cwd=ROOT)
         svoi = sorted({m.group(1) for m in re.finditer(r"days/([a-z0-9]+)\.json", f)})
     else:
@@ -140,7 +152,7 @@ def main(site, okno, dni):
             print(f"# {i}: в days/{i}.json нет sajt — ролик на сайт не идёт", file=sys.stderr); continue
         if ns and not kadry_na_meste(chit, i):
             print(f"# {i} ({vetka}): в yaml нет adres: den — кадры не на месте, ролик ждёт", file=sys.stderr); continue
-        z, k = f"{i}:{sj.get('variant', 'A')}", kluch_ns(chit, i) if ns else kluch(p.read_bytes())
+        z, k = f"{i}:{sj.get('variant', 'A')}", kluch_ns(chit, i) if ns else kluch_izob(chit, p)
         # прежний ключ (с блоком video, до Р790) уже собран из того же — второй раз не собирать
         if ns and f"render {z} {kluch_ns(chit, i, s_video=True)}" in imena:
             continue
