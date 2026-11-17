@@ -72,11 +72,23 @@ jobs:
           path: sobrano
           run-id: ${{ inputs.run }}
           github-token: ${{ github.token }}
+      # сценарий, по которому ролик озвучен (render.yml scenarij-<день>, Р805): хук vypusk.json — из него, а не из копии days/ в репо;
+      # шаблон, а не name: у дня без задания scenarij артефакта нет, и шаг не падает
+      - if: steps.s.outputs.est == '1'
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          pattern: scenarij-${{ inputs.day }}
+          merge-multiple: true
+          path: scenarij
+          run-id: ${{ inputs.run || github.run_id }}
+          github-token: ${{ github.token }}
       - if: steps.s.outputs.est == '1'
         env:
           V: ${{ steps.s.outputs.v }}
         run: |
           s=$(jq -c '.sajt' "days/$DAY.json"); imya=$(jq -r .imya <<<"$s")
+          sc="days/$DAY.json"; [ -f "scenarij/days/$DAY.json" ] && sc="scenarij/days/$DAY.json"
+          echo "Хук выпуска — из $sc"
           mkdir rel
           for f in 16x9 9x16; do
             src="sobrano/$DAY-$V-$f"; suf=""; [ "$f" = 9x16 ] && suf="-9x16"
@@ -88,7 +100,7 @@ jobs:
               '{($f): {sec: ($sec|tonumber*10|round/10), mb: ($b|tonumber/1048576*10|round/10)}}' > "sobrano/$f.json"
           done
           jq -n --arg den "$DAY" --arg run "$RUN" --arg v "$V" --argjson s "$s" \
-            --arg hook "$(jq -r '[.segments[] | select(.id == "hook")][0] | .show // .say // ""' "days/$DAY.json")" \
+            --arg hook "$(jq -r '[.segments[] | select(.id == "hook")][0] | .show // .say // ""' "$sc")" \
             --slurpfile a sobrano/16x9.json --slurpfile b sobrano/9x16.json \
             '{vid: "rolik", den: $den, run: ($run|tonumber), variant: $v, hook: $hook} + $s + {fajly: ($a[0] + $b[0])}' > rel/vypusk.json
           cat rel/vypusk.json
