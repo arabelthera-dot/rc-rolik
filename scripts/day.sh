@@ -66,6 +66,11 @@ for i in $(seq 30); do
   [ -n "$ID" ] && break
 done
 [ -n "$ID" ] || oblako_net "прогон не появился"
+# Р789: сигнал rolik-gotov из облака в rc-site не доходит (нет ключа), расписание rolik-na-sait — раз в час.
+# Поэтому отсюда (ключ gh на сервере есть): фоновый ждун выходит вместе с прогоном и после успеха (выпуск уже сделан
+# в том же прогоне) сам зовёт rolik-na-sait — помощник при --ne-zhdat по-прежнему не ждёт. Журнал — /tmp/day-sh-na-sait-<прогон>.log.
+[ "$F" = oba ] && nohup sh -c "gh run watch $ID -R $REPO --exit-status --interval 60 >/dev/null && gh workflow run rolik-na-sait.yml -R arabelthera-dot/rc-site" \
+  >"/tmp/day-sh-na-sait-$ID.log" 2>&1 &
 [ -n "$NE_ZHDAT" ] && { echo "прогон $ID: https://github.com/$REPO/actions/runs/$ID — отдан облаку, не жду. $([ "$F" = oba ] && echo "На сайт — заявка rolik-na-sait (выпуск vypusk-$DAY-$ID)" || echo "Формат не oba — выпуска на сайт не будет")"; exit 0; }
 echo "прогон $ID: https://github.com/$REPO/actions/runs/$ID — жду"
 gh run watch "$ID" -R "$REPO" --exit-status --interval 30 >/dev/null || { echo "прогон $ID упал: https://github.com/$REPO/actions/runs/$ID"; exit 1; }
