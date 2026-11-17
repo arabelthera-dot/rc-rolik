@@ -1,6 +1,6 @@
 // Замок сценария (r544 п.5, Р534/Р536; Р765 — все музеи): хук ролика = хук утверждённой карточки дня дословно.
 // Для каждого days/*.json (музей и дата — как в scripts/huk-iz-kartochki.mjs): первая сцена — id hook; её текст (show, а нет — say без знаков ударения) совпадает
-// с полем hook карточки rc-site src/content/days/<музей>/ММ-ДД.json (ветка main). Кадры сцен дней nsДДмес — только kadry/<день>/ этого дня.
+// с полем hook карточки rc-site src/content/days/<музей>/ММ-ДД.json (ветка main или открытая заявка, которая правит эту карточку). Кадры сцен дней nsДДмес — только kadry/<день>/ этого дня.
 // Расхождение, нет карточки или кадра → код 1, проверка заявки красная.
 // Запуск: node scripts/zamok-huk.mjs [день ...] (без дней — все days/*.json). RC_SITE=<путь> — карточки из своей копии сайта.
 // Откат: удалить файл и шаг «замок хука» в .github/workflows/proverka.yml.
@@ -41,11 +41,25 @@ async function vetkiZayavok() {
   const h = process.env.GITHUB_TOKEN ? { authorization: `Bearer ${process.env.GITHUB_TOKEN}` } : {};
   const r = await fetch('https://api.github.com/repos/arabelthera-dot/rc-site/pulls?state=open&per_page=100', { headers: h });
   if (!r.ok) throw new Error(`rc-site: список открытых заявок HTTP ${r.status}`);
-  zayavki = (await r.json()).filter((z) => !z.draft && z.head?.repo?.full_name === 'arabelthera-dot/rc-site').map((z) => z.head.ref);
+  zayavki = (await r.json()).filter((z) => !z.draft && z.head?.repo?.full_name === 'arabelthera-dot/rc-site')
+    .map((z) => ({ nomer: z.number, ref: z.head.ref }));
   return zayavki;
 }
 
-// хуки карточки дня: сначала из REF (main), затем из открытых заявок rc-site — ролик собирается из заявки страницы
+// Р784 (brak-stranic п. 15): правит ли заявка карточку дня — хук старой ветки, где день не трогали, не засчитывается
+async function pravitKartochku(nomer, put) {
+  const h = process.env.GITHUB_TOKEN ? { authorization: `Bearer ${process.env.GITHUB_TOKEN}` } : {};
+  for (let page = 1; page <= 30; page++) {
+    const r = await fetch(`https://api.github.com/repos/arabelthera-dot/rc-site/pulls/${nomer}/files?per_page=100&page=${page}`, { headers: h });
+    if (!r.ok) throw new Error(`rc-site: файлы заявки #${nomer} HTTP ${r.status}`);
+    const faily = await r.json();
+    if (faily.some((f) => f.filename === put)) return true;
+    if (faily.length < 100) return false;
+  }
+  return false;
+}
+
+// хуки карточки дня: сначала из REF (main), затем из открытых заявок rc-site, которые правят эту карточку (Р784) — ролик собирается из заявки страницы
 // до её слияния (r763), такой сценарий уже стоит в main rc-rolik раньше карточки в main rc-site (04feb, r764)
 export async function hukiKartochki(key, muzei, tekst) {
   const chist = (k) => String(k?.hook ?? '').replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim();
@@ -53,9 +67,10 @@ export async function hukiKartochki(key, muzei, tekst) {
   const glavnaya = chist(await kartochka(key, muzei));
   if (glavnaya) out.push({ ref: REF, huk: glavnaya });
   if (process.env.RC_SITE || process.env.RC_SITE_REF || (glavnaya && norm(tekst) === norm(glavnaya))) return out;
-  for (const ref of await vetkiZayavok()) {
+  for (const { nomer, ref } of await vetkiZayavok()) {
     const huk = chist(await kartochka(key, muzei, ref));
-    if (huk && !out.some((x) => x.huk === huk)) out.push({ ref, huk });
+    if (huk && !out.some((x) => x.huk === huk) && await pravitKartochku(nomer, `src/content/days/${muzei}/${key}.json`))
+      out.push({ ref, huk });
   }
   return out;
 }
