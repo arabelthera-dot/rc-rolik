@@ -66,15 +66,25 @@ async function sajt(rel, kak = 'text') {
 }
 
 // Факты yaml с текстом и порядком утверждённого — функцией сайта faktyIzUtverzhdeno (src/lib/fakty-iz-utverzhdeno.mjs).
-// С RC_SITE модуль и копия читаются из неё; без — скачиваются из main во временный корень, модулю нужен только node:fs.
+// С RC_SITE модуль и копия читаются из неё; без — скачиваются из main во временный корень вместе с относительными
+// импортами модуля (./x.mjs, по цепочке): сайт добавил импорт — облако не падает ERR_MODULE_NOT_FOUND (r837, istochnik-fakta.mjs).
+async function sModulyami(rel, fajly = new Map()) {
+  if (fajly.has(rel)) return fajly;
+  const t = await sajt(rel);
+  if (t == null) throw new Error(`rc-site ${rel}: нет модуля`);
+  fajly.set(rel, t);
+  for (const [, imp] of t.matchAll(/^\s*(?:import|export)\b[^'"]*?from\s*['"](\.{1,2}\/[^'"]+)['"]/gm)) {
+    await sModulyami(path.posix.normalize(path.posix.join(path.posix.dirname(rel), imp)), fajly);
+  }
+  return fajly;
+}
 async function izUtverzhdeno(st, key) {
   const MOD = 'src/lib/fakty-iz-utverzhdeno.mjs', UTV = `src/data/utverzhdeno/${MUZEJ}/${key}.json`;
   let koren = process.env.RC_SITE;
   if (!koren) {
-    const [mod, utv] = await Promise.all([sajt(MOD), sajt(UTV)]);
-    if (!mod) throw new Error(`rc-site ${MOD}: нет модуля`);
+    const [moduli, utv] = await Promise.all([sModulyami(MOD), sajt(UTV)]);
     koren = fs.mkdtempSync(path.join(os.tmpdir(), 'scenarij-'));
-    for (const [rel, t] of [[MOD, mod], [UTV, utv]].filter(([, t]) => t != null)) {
+    for (const [rel, t] of [...moduli, [UTV, utv]].filter(([, t]) => t != null)) {
       fs.mkdirSync(path.dirname(path.join(koren, rel)), { recursive: true });
       fs.writeFileSync(path.join(koren, rel), t);
     }
