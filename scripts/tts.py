@@ -214,7 +214,11 @@ def main(day, voice=None):
             words = [{"t": a + (b - a) * k / n, "d": (b - a) / n, "w": w} for k, w in enumerate(sw)]
         else:
             # edge-tts отдаёт слова без пунктуации — возвращаем её из исходного текста
-            src = s["say"].split()
+            # отдельный знак («—», «–») служба словом не считает — приклеиваем его к соседнему слову, чтобы не выпал из подписи (Р832, журнал 53)
+            src = []
+            for w in s["say"].split():
+                if re.search(r"\w", w): src.append(w)
+                elif src: src[-1] += " " + w
             src = [w for w in src if re.search(r"\w", w)]
             if len(src) == len(words):
                 for w, o in zip(words, src):  # подписи — из исходного текста, без знаков ударения
