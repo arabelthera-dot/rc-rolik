@@ -1,14 +1,14 @@
 import React from 'react';
 import {
   AbsoluteFill, Audio, Img, OffthreadVideo, Sequence, continueRender, delayRender, interpolate,
-  random, staticFile, useCurrentFrame, useVideoConfig, Easing,
+  random, staticFile, useCurrentFrame, useVideoConfig,
 } from 'remotion';
 import {DaySeg, ImgMeta, Props, TSeg, Word} from './types';
+import {Fokus, XF, clamp, dvizhenieKadra, ease, rastvorenie, rost, vyezd} from './dvizhenie';
 import LAYOUT from './layout.json';
 
 const AMBER = '#f2b84b';
 const INK = '#0c0b09';
-const XF = 9; // кадров на перекрёстный переход
 
 // ---------- шрифты ----------
 let fontsPromise: Promise<void> | null = null;
@@ -24,9 +24,6 @@ const useFonts = () => {
   }, [h]);
 };
 
-const ease = Easing.bezier(0.33, 0, 0.2, 1);
-const clamp = {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'} as const;
-
 // время (с) произнесения первого слова, начинающегося с key
 const wordTime = (seg: TSeg, key: string, fallback = 0) => {
   const w = seg.words.find((x) => x.w.toLowerCase().replace(/[«»"(),.:—]/g, '').startsWith(key.toLowerCase()));
@@ -35,17 +32,10 @@ const wordTime = (seg: TSeg, key: string, fallback = 0) => {
 
 // ---------- 2.5D: фон + передний план с разной скоростью ----------
 const Layered: React.FC<{
-  day: string; k: string; meta: ImgMeta; W: number; H: number; p: number; mode: 'zoom' | 'pan' | 'contain'; dim?: number; video?: string;
-}> = ({day, k, meta, W, H, p, mode, dim = 0, video}) => {
+  day: string; k: string; meta: ImgMeta; W: number; H: number; p: number; mode: 'zoom' | 'pan' | 'contain'; dim?: number; video?: string; fokus?: Fokus;
+}> = ({day, k, meta, W, H, p, mode, dim = 0, video, fokus}) => {
   const m = meta[k] || {w: 1920, h: 1080, fg: false};
-  const cover = mode === 'contain' ? Math.min(W / m.w, H / m.h) : Math.max(W / m.w, H / m.h);
-  const e = ease(p);
-  const sBg = cover * (mode === 'contain' ? 1 + 0.04 * e : mode === 'zoom' ? 1.06 + 0.10 * e : 1.04 + 0.03 * e);
-  const sFg = cover * (mode === 'zoom' ? 1.06 + 0.13 * e : 1.04 + 0.06 * e);
-  const spanBg = Math.max(0, m.w * sBg - W) / 2;
-  const spanFg = Math.max(0, m.w * sFg - W) / 2;
-  const dxBg = mode === 'pan' ? interpolate(e, [0, 1], [spanBg * 0.85, -spanBg * 0.85]) : mode === 'contain' ? 0 : -18 * e;
-  const dxFg = mode === 'pan' ? interpolate(e, [0, 1], [spanFg * 0.95, -spanFg * 0.95]) : -36 * e;
+  const {sBg, sFg, dxBg, dxFg, dyBg, dyFg} = dvizhenieKadra(m, W, H, p, mode, fokus);
   const box = (s: number, dx: number, dy: number): React.CSSProperties => ({
     position: 'absolute', width: m.w * s, height: m.h * s,
     left: (W - m.w * s) / 2 + dx, top: (H - m.h * s) / 2 + dy, maxWidth: 'none',
@@ -53,15 +43,15 @@ const Layered: React.FC<{
   if (video) {
     return (
       <div style={{position: 'absolute', inset: 0, overflow: 'hidden'}}>
-        <OffthreadVideo src={staticFile(`days/${day}/${video}`)} muted style={box(sBg, dxBg, 0)} />
+        <OffthreadVideo src={staticFile(`days/${day}/${video}`)} muted style={box(sBg, dxBg, fokus ? dyBg : 0)} />
         <AbsoluteFill style={{background: `rgba(0,0,0,${dim})`}} />
       </div>
     );
   }
   return (
     <div style={{position: 'absolute', inset: 0, overflow: 'hidden'}}>
-      <Img src={staticFile(`days/${day}/${k}-bg.jpg`)} style={box(sBg, dxBg, mode === 'contain' ? 0 : 6 * e)} />
-      {m.fg && <Img src={staticFile(`days/${day}/${k}-fg.png`)} style={box(sFg, dxFg, -10 * e)} />}
+      <Img src={staticFile(`days/${day}/${k}-bg.jpg`)} style={box(sBg, dxBg, dyBg)} />
+      {m.fg && <Img src={staticFile(`days/${day}/${k}-fg.png`)} style={box(sFg, dxFg, dyFg)} />}
       <AbsoluteFill style={{background: `rgba(0,0,0,${dim})`}} />
     </div>
   );
@@ -109,7 +99,7 @@ const Particles: React.FC<{kind: 'dust' | 'smoke' | 'embers'; n: number; W: numb
 const PipeSweep: React.FC<{W: number; H: number; y: number}> = ({W, H, y}) => {
   const f = useCurrentFrame();
   const {fps} = useVideoConfig();
-  const draw = interpolate(f, [0.2 * fps, 2.2 * fps], [0, 1], {...clamp, easing: ease});
+  const draw = rost(f, 0.2 * fps, 2.2 * fps, true);
   const L = W * 1.05;
   const d = `M ${-0.02 * W} ${y} C ${0.3 * W} ${y - 0.03 * H}, ${0.6 * W} ${y + 0.03 * H}, ${1.02 * W} ${y - 0.01 * H}`;
   return (
@@ -126,9 +116,9 @@ const Formulas: React.FC<{W: number; H: number; seg: TSeg; t0: number; labels: s
   const f = useCurrentFrame();
   const {fps} = useVideoConfig();
   const tNow = t0 + f / fps;
-  const on = (key: string, fb: number) => interpolate(tNow, [wordTime(seg, key, fb) - 0.1, wordTime(seg, key, fb) + 0.5], [0, 1], clamp);
+  const on = (key: string, fb: number) => rost(tNow, wordTime(seg, key, fb) - 0.1, wordTime(seg, key, fb) + 0.5);
   const a = on('диаметр', seg.start + 3), b = on('давлен', seg.start + 4), c = on('вязк', seg.start + 5);
-  const base = interpolate(f, [5, 40], [0, 1], {...clamp, easing: ease});
+  const base = rost(f, 5, 40, true);
   const s = Math.min(W, H * 1.4) / 900;
   const cx = W * 0.3, cy = H * 0.42, R = 120 * s;
   const pipeX0 = cx + R * 0.2, pipeX1 = W * 0.94, py = cy;
@@ -181,14 +171,14 @@ const PipelineMap: React.FC<{W: number; H: number; seg: TSeg; t0: number; area: 
   const q = (t: number) => ({x: (1 - t) ** 2 * P0.x + 2 * (1 - t) * t * P1.x + t * t * P2.x, y: (1 - t) ** 2 * P0.y + 2 * (1 - t) * t * P1.y + t * t * P2.y});
   const tA = wordTime(seg, labels.from_key, seg.start + 5);
   const tB = wordTime(seg, labels.to_key, seg.start + 7);
-  const draw = interpolate(tNow, [tA, tB + 0.4], [0, 1], {...clamp, easing: ease});
-  const card = interpolate(f, [0, 12], [0, 1], clamp);
+  const draw = rost(tNow, tA, tB + 0.4, true);
+  const card = rost(f, 0, 12);
   const pts = Array.from({length: 61}).map((_, i) => q((i / 60) * draw));
   const d = pts.map((p, i) => `${i ? 'L' : 'M'} ${p.x} ${p.y}`).join(' ');
   const tKm = wordTime(seg, labels.km_key, tA);
   const tVol = wordTime(seg, labels.vol_key, tB + 1);
-  const km = interpolate(tNow, [tKm, tKm + 0.4], [0, 1], clamp);
-  const vol = interpolate(tNow, [tVol, tVol + 0.5], [0, 1], clamp);
+  const km = rost(tNow, tKm, tKm + 0.4);
+  const vol = rost(tNow, tVol, tVol + 0.5);
   const txt = (sz: number, c = '#f4ecdc'): React.CSSProperties => ({fontFamily: 'Inter', fontWeight: 700, fontSize: sz * s, fill: c});
   return (
     <svg width={W} height={H} style={{position: 'absolute', inset: 0}}>
@@ -202,8 +192,8 @@ const PipelineMap: React.FC<{W: number; H: number; seg: TSeg; t0: number; area: 
         })}
         <circle cx={P0.x} cy={P0.y} r={16 * s} fill={AMBER} opacity={draw > 0 ? 1 : 0.3} />
         <circle cx={P2.x} cy={P2.y} r={16 * s} fill={AMBER} opacity={draw > 0.99 ? 1 : 0.3} />
-        <text x={P0.x} y={P0.y + 62 * s} textAnchor="middle" style={txt(40)} opacity={interpolate(tNow, [tA - 0.2, tA + 0.3], [0, 1], clamp)}>{labels.from}</text>
-        <text x={P2.x} y={P2.y + 62 * s} textAnchor="middle" style={txt(40)} opacity={interpolate(tNow, [tB - 0.2, tB + 0.3], [0, 1], clamp)}>{labels.to}</text>
+        <text x={P0.x} y={P0.y + 62 * s} textAnchor="middle" style={txt(40)} opacity={rost(tNow, tA - 0.2, tA + 0.3)}>{labels.from}</text>
+        <text x={P2.x} y={P2.y + 62 * s} textAnchor="middle" style={txt(40)} opacity={rost(tNow, tB - 0.2, tB + 0.3)}>{labels.to}</text>
         <text x={q(0.5).x} y={q(0.5).y - 34 * s} textAnchor="middle" style={txt(54, AMBER)} opacity={km}>{labels.km}</text>
         <text x={ax + aw / 2} y={ay + ah - 34 * s} textAnchor="middle" style={txt(44, '#fff')} opacity={vol}>{labels.vol}</text>
       </g>
@@ -224,7 +214,7 @@ const TowerMesh: React.FC<{W: number; H: number; cx: number; top: number; bottom
     const rB = rad(k), rT = rad(k + 1);
     const yB = bottom - k * tierH, yT = yB - tierH;
     const twist = Math.PI * (k === 0 ? 0.32 : 0.22);
-    const prog = interpolate(f, [k * 12, k * 12 + 28], [0, 1], {...clamp, easing: ease});
+    const prog = rost(f, k * 12, k * 12 + 28, true);
     for (let i = 0; i < N; i++) {
       for (const dir of [1, -1]) {
         const a = (i / N) * Math.PI * 2, b = a + dir * twist;
@@ -254,8 +244,8 @@ const Altitude: React.FC<{W: number; H: number; seg: TSeg; t0: number; area: [nu
   const tNow = t0 + f / fps;
   const [ax, ay, aw, ah] = area;
   const a = wordTime(seg, labels.alt_from, seg.start), b = wordTime(seg, labels.alt_key, seg.start + 4);
-  const k = interpolate(tNow, [a, b + 0.3], [0, 1], {...clamp, easing: ease});
-  const card = interpolate(f, [0, 12], [0, 1], clamp);
+  const k = rost(tNow, a, b + 0.3, true);
+  const card = rost(f, 0, 12);
   const s = Math.min(aw, ah) / 400;
   const barX = ax + aw * 0.5, top = ay + ah * 0.12, bot = ay + ah * 0.78, y = bot - (bot - top) * k;
   return (
@@ -278,7 +268,7 @@ const PlateFrame: React.FC<{W: number; H: number; seg: TSeg; t0: number; cx: num
   const f = useCurrentFrame();
   const {fps} = useVideoConfig();
   const tk = wordTime(seg, labels.key, seg.start + 4);
-  const k = interpolate(t0 + f / fps, [tk - 0.2, tk + 0.6], [0, 1], {...clamp, easing: ease});
+  const k = rost(t0 + f / fps, tk - 0.2, tk + 0.6, true);
   const L = side * 4;
   const img: string | undefined = labels.image;
   if (!img && !labels.steklo) {
@@ -325,12 +315,12 @@ const Years: React.FC<{seg: TSeg; t0: number; area: [number, number, number, num
     <div style={{position: 'absolute', left: ax, top: ay, width: aw, height: ah}}>
       {items.map((it, i) => {
         const tk = it.key ? wordTime(seg, it.key, seg.start + 1 + i) : -1;
-        const k = i === 0 ? interpolate(f, [0, 12], [0, 1], {...clamp, easing: ease})
-          : it.key ? interpolate(tNow, [tk - 0.15, tk + 0.35], [0, 1], {...clamp, easing: ease}) : 1;
+        const k = i === 0 ? rost(f, 0, 12, true)
+          : it.key ? rost(tNow, tk - 0.15, tk + 0.35, true) : 1;
         const yLen = String(it.y).length;
         return (
           <div key={i} style={{position: 'absolute', left: 0, top: i * (rowH + gap), width: aw, height: rowH, opacity: k,
-            transform: `translateX(${(1 - k) * 40}px)`, display: 'flex', alignItems: 'center', gap: 26, padding: '0 28px', boxSizing: 'border-box',
+            transform: `translateX(${vyezd(k, 40)}px)`, display: 'flex', alignItems: 'center', gap: 26, padding: '0 28px', boxSizing: 'border-box',
             background: it.win ? 'rgba(242,184,75,.16)' : 'rgba(10,9,7,.76)', border: `2px solid ${it.win ? AMBER : 'rgba(255,255,255,.18)'}`, borderRadius: 18,
             fontFamily: 'Inter', color: '#fff'}}>
             <div style={{fontWeight: 800, fontSize: rowH * 0.42 * Math.min(1, 5.5 / Math.max(yLen, 1)), color: it.win ? AMBER : '#fff', letterSpacing: -1,
@@ -409,17 +399,20 @@ const Scene: React.FC<{props: Props; seg: DaySeg; tseg: TSeg; t0: number; dur: n
   const f = useCurrentFrame();
   const {width: W, height: H} = useVideoConfig();
   const p = f / dur;
-  const fade = first || cut ? 1 : interpolate(f, [0, XF], [0, 1], clamp);
+  const fade = rastvorenie(f, !!(first || cut));
   const meta = props.images!;
   const day = props.day;
   const k = seg.image || '';
   const fx = seg.fx;
   const labels: any = (seg as any).labels || {};
+  // п.72: точка главного предмета — только 9:16 и только при "fokus_9x16": true в дне (по умолчанию обрезка прежняя)
+  const cfgAny: any = props.cfg || {};
+  const fokus: Fokus | undefined = vertical && cfgAny.fokus_9x16 === true ? cfgAny.images?.[k]?.fokus : undefined;
   let body: React.ReactNode;
 
   const panel = (x: number, y: number, w: number, h: number, mode: 'zoom' | 'pan' | 'contain', dim = 0) => (
     <div style={{position: 'absolute', left: x, top: y, width: w, height: h, overflow: 'hidden', borderRadius: vertical ? 0 : 0}}>
-      <Layered day={day} k={k} meta={meta} W={w} H={h} p={p} mode={mode} dim={dim} video={videoBg} />
+      <Layered day={day} k={k} meta={meta} W={w} H={h} p={p} mode={mode} dim={dim} video={videoBg} fokus={fokus} />
       {!videoBg && <ImgLabel text={meta[k]?.label} vertical={vertical} />}
     </div>
   );
@@ -430,13 +423,13 @@ const Scene: React.FC<{props: Props; seg: DaySeg; tseg: TSeg; t0: number; dur: n
   );
 
   if (fx === 'endcard') {
-    const a = interpolate(f, [4, 22], [0, 1], {...clamp, easing: ease});
+    const a = rost(f, 4, 22, true);
     body = (
       <AbsoluteFill style={{background: `radial-gradient(ellipse at 50% 40%, #2a2216 0%, ${INK} 70%)`}}>
         {labels.deco !== 'none' && <TowerMesh W={W} H={H} cx={vertical ? W * 0.5 : W * 0.8} top={H * (vertical ? 0.08 : 0.1)} bottom={H * (vertical ? 0.5 : 0.92)} width={vertical ? W * 0.55 : H * 0.55} opacity={0.35} />}
         <Particles kind="dust" n={40} W={W} H={H} seed="end" />
         <div style={{position: 'absolute', left: vertical ? 60 : 140, right: vertical ? 60 : W * 0.4, top: vertical ? H * 0.52 : H * 0.3,
-          opacity: a, transform: `translateY(${(1 - a) * 30}px)`, fontFamily: 'Inter', color: '#fff', textAlign: vertical ? 'center' : 'left'}}>
+          opacity: a, transform: `translateY(${vyezd(a, 30)}px)`, fontFamily: 'Inter', color: '#fff', textAlign: vertical ? 'center' : 'left'}}>
           <div style={{fontWeight: 600, fontSize: vertical ? 64 : 64, lineHeight: 1.15}}>Смотри день целиком на</div>
           <div style={{fontWeight: 800, fontSize: vertical ? 76 : 92, color: AMBER, marginTop: 18, letterSpacing: -1}}>russian-civilization.ru</div>
         </div>

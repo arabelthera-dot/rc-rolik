@@ -1,14 +1,38 @@
 # Сборка роликов на машинах GitHub (Р243, 24.10.2026): наш сервер не нагружается,
 # каждый файл — отдельная машина (4 ядра, 16 ГБ), до 20 параллельно; репо открытый — минуты бесплатны.
 # Запуск: gh workflow run render.yml -f zadacha="05jan:AB 26jan:A"   (день:варианты, через пробел)
-# Озвучка (Р248): при ozvuchka=true голос (scripts/tts.py, словарь udareniya.json) и звук (scripts/sfx.py)
+# Озвучка (Р248): при ozvuchka=true голос (scripts/tts.py, словарь udareniya.json + имена из словаря сайта) и звук (scripts/sfx.py)
 # синтезируются здесь же — один раз на день, все варианты берут одну и ту же. false — берётся готовая из репо.
 # По умолчанию true: проба 05jan B 16x9 (прогон 40085948048) совпала с эталоном — 46,9 с, 11 МБ.
 # Слои (Р249): при sloi=true scripts/layers.py режет подлинные кадры из kadry/<день>/ на фон и передний план
 # здесь же — один раз на день; false — берутся готовые слои из public/days/<день>/.
 # Заставка из 3D-сцены (r521): gh workflow run render.yml -f zastavka3d=r7 (zadacha не нужна) — снимает
 # zastavka3d/<имя>/ в Playwright+SwiftShader по ручным часам и кодирует ролики; обычная сборка при этом не идёт.
+# Сценарий НС из карточки (Р699): для дней nsДДмес задание scenarij пересобирает days/<день>.json и kadry/<день>/
+# scripts/scenarij.mjs из rc-site main — озвучка, слои и сборка берут только его, не копию из репо.
+# Отказ scenarij.mjs (нет хука, меньше 40 с) — день красный, старый сценарий не озвучивается.
+# Р765 (14.11.2026): остальные дни — то же задание, scripts/huk-iz-kartochki.mjs ставит в первую сцену хук карточки
+# rc-site main дословно (ручного хука в сценарии нет); нет карточки с хуком — день красный.
+# Откат: убрать задание scenarij, его needs и шаги download-artifact scenarij-* (Р765 отдельно — matrix ns и if
+# «contains(ns)» у шагов download-artifact вместо days, ветку huk-iz-kartochki убрать).
+# Откат: убрать задание scenarij, его needs и шаги download-artifact scenarij-*.
+# Р819 (18.11.2026): один источник текста — файл дня rc-site src/content/dni-shablon/<музей>/ММ-ДД.yaml. Дни изобретений
+# (ДДмес) собирает scripts/scenarij.mjs --muzej=izobreteniya, как НС: хук — lead.hook, факты — со страницы. После сборки
+# scenarij.mjs --sverit сверяет сценарий с файлом дня; расхождение — ::error с номером сцены и обоими текстами, день красный.
+# Откат: переменная репозитория SCENARIJ_IZ_DNYA=0 — изобретения снова через huk-iz-kartochki.mjs.
+# Сценарий из заявки страницы (r763, Р763): -f vetka_sajta=<ветка заявки rc-site> — scenarij.mjs берёт карточку, yaml
+# и копию утверждённого из этой ветки (RC_SITE_REF), ролик собирается до слияния страницы; ставит avto.py по открытой
+# заявке дня. По умолчанию main — как раньше. Откат: убрать вход vetka_sajta и строку RC_SITE_REF.
+# Кэш готового ролика (r713 п.60): -f kesh=true — отпечаток sha256 входов ролика (scripts/otpechatok.sh: день, кадры,
+# голос, слои, шрифты, шаблон src/, render.mjs, lock, вариант, формат); тот же отпечаток уже собран — ролик из
+# actions/cache, Remotion не запускается. По умолчанию false — сборка как раньше. Откат: убрать вход kesh и шаги kesh.
+# Слои звука (r713 п.65, п.66): -f sloi_zvuka=true — рядом с mp4 16x9 в артефакте (и в выпуске) голос <ролик>-golos.mp3,
+# музыка/шумы <ролик>-shum.mp3, субтитры <ролик>.srt/.vtt (scripts/sloi_zvuka.py). Субтитры — из слов edge-tts;
+# -f whisper=true — только для звука без слов (старые ролики, ozvuchka=false) распознаёт faster-whisper. Ролик не меняется.
+# По умолчанию оба false — как раньше. Откат: убрать входы sloi_zvuka, whisper и шаг sloi_zvuka.
 name: render
+# имя прогона = задание и ключ сценария: avto.yml по нему видит, что этот сценарий уже собирали (r685)
+run-name: render ${{ inputs.zadacha }}${{ inputs.zastavka3d }} ${{ inputs.klyuch }}
 on:
   workflow_dispatch:
     inputs:
@@ -31,8 +55,35 @@ on:
         description: "заставка из 3D-сцены: папка в zastavka3d/ (напр. r7); пусто — обычная сборка роликов"
         required: false
         default: ""
+      vetka_sajta:
+        description: "ветка rc-site для сценария НС (ветка заявки дня, r763); по умолчанию main"
+        required: false
+        default: "main"
+      klyuch:
+        description: "ключ сценария (ставит avto.yml), только для имени прогона"
+        required: false
+        default: ""
+      kesh:
+        description: "не пересобирать ролик, если такой же (тот же отпечаток входов) уже собран (r713)"
+        type: boolean
+        default: false
+      sloi_zvuka:
+        description: "положить рядом с mp4 16x9 слои: голос, музыку/шумы, субтитры srt/vtt (r713 п.65)"
+        type: boolean
+        default: false
+      whisper:
+        description: "нет слов edge-tts — субтитры распознать faster-whisper (r713 п.66; нужен sloi_zvuka)"
+        type: boolean
+        default: false
+      zapasnoj_golos:
+        description: "edge-tts не ответил после всех повторов — сцену озвучивает бесплатный Piper ru_RU-dmitri-medium (п.92); по умолчанию выключено"
+        type: boolean
+        default: false
 concurrency:
   group: render-${{ github.run_id }}
+# Права по умолчанию — только чтение (п.502, Р745); запись — у задания выпуска.
+permissions:
+  contents: read
 jobs:
   plan:
     # при заставке plan пропущен — ozvuchka, layers и render пропускаются вслед за ним
@@ -41,6 +92,7 @@ jobs:
     outputs:
       matrix: ${{ steps.m.outputs.matrix }}
       days: ${{ steps.m.outputs.days }}
+      ns: ${{ steps.m.outputs.ns }}
     steps:
       - id: m
         env:
@@ -49,21 +101,98 @@ jobs:
         run: |
           if [ -z "${ZADACHA// /}" ]; then echo "::error::пустая zadacha"; exit 1; fi
           fmts="16x9 9x16"; [ "$FORMAT" = "oba" ] || fmts="$FORMAT"
-          items=""; days=""
+          items=""; days=""; ns=""
           for z in $ZADACHA; do
             d=${z%%:*}; vs=${z#*:}; [ "$vs" = "$z" ] && vs=A
             case "$days" in *"\"$d\""*) ;; *) days="$days\"$d\",";; esac
+            # дни НС (nsДДмес) — сценарий пересобирается из карточки сайта (задание scenarij)
+            if echo "$d" | grep -Eq '^ns[0-9]{2}[a-z]{3}$'; then
+              case "$ns" in *"\"$d\""*) ;; *) ns="$ns\"$d\",";; esac
+            fi
             for v in $(echo "$vs" | grep -o .); do for f in $fmts; do
               items="$items{\"day\":\"$d\",\"v\":\"$v\",\"f\":\"$f\"},"
             done; done
           done
-          echo "matrix={\"include\":[${items%,}]}" >> "$GITHUB_OUTPUT"
-          echo "days=[${days%,}]" >> "$GITHUB_OUTPUT"
-  ozvuchka:
+          {
+            echo "matrix={\"include\":[${items%,}]}"
+            echo "days=[${days%,}]"
+            echo "ns=[${ns%,}]"
+          } >> "$GITHUB_OUTPUT"
+  # Сценарий НС — из записи дня rc-site main при каждом прогоне (Р699): карточку поменяли после сборки —
+  # ролик всё равно озвучивает её хук. Как в мире: данные ролика — входные props из источника, не копия
+  # (https://www.remotion.dev/docs/passing-props). Отказ — красное задание дня, его артефакта нет,
+  # и озвучка/слои/сборка этого дня падают на download-artifact, остальные дни идут (как r264).
+  scenarij:
     needs: plan
-    if: inputs.ozvuchka
     runs-on: ubuntu-latest
-    timeout-minutes: 45  # до 10 попыток по ≈5,5 мин на сцену (r264)
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        day: ${{ fromJson(needs.plan.outputs.days) }}
+    name: scenarij-${{ matrix.day }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+          cache: npm
+      # scenarij.mjs нужен только js-yaml из lock; движок Remotion здесь не ставится (--ignore-scripts)
+      - run: npm ci --ignore-scripts
+      - env:
+          DEN: ${{ matrix.day }}
+          RC_SITE_REF: ${{ inputs.vetka_sajta }}
+          SCENARIJ_IZ_DNYA: ${{ vars.SCENARIJ_IZ_DNYA }}
+        run: |
+          mes=jan,feb,mar,apr,may,jun,jul,aug,sep,oct,nov,dec
+          # Р819: изобретения (ДДмес) — сценарий целиком из файла дня rc-site, как НС; копия в репо не озвучивается
+          muzei=$(node --input-type=module -e "import fs from 'node:fs'; import { denSajta } from './scripts/huk-iz-kartochki.mjs';
+            const f = 'days/$DEN.json'; console.log(denSajta('$DEN', fs.existsSync(f) ? JSON.parse(fs.readFileSync(f, 'utf8')) : {})?.muzei ?? '')")
+          if [ "$muzei" = izobreteniya ] && [ "$SCENARIJ_IZ_DNYA" != 0 ]; then
+            dd=${DEN:0:2}; m=${DEN:2:3}
+            mm=$(echo "$mes" | tr ',' '\n' | grep -nx "$m" | cut -d: -f1)
+            [ -n "$mm" ] || { echo "::error::$DEN: не понять месяц «$m»"; exit 1; }
+            key=$(printf '%02d-%s' "$mm" "$dd")
+            if ! node scripts/scenarij.mjs "$key" --muzej=izobreteniya --zamenit; then
+              echo "::error::$DEN: сценарий не собран из файла дня rc-site ${RC_SITE_REF:-main} src/content/dni-shablon/izobreteniya/$key.yaml (причина — строка ✗ выше); старый сценарий не озвучивается, ролика дня нет"
+              exit 1
+            fi
+            node scripts/scenarij.mjs "$key" --muzej=izobreteniya --sverit || exit 1
+            exit 0
+          fi
+          # Р765: остальные музеи — сценарий из репо, но хук первой сцены дословно из карточки rc-site main
+          if ! echo "$DEN" | grep -Eq '^ns[0-9]{2}[a-z]{3}$'; then
+            if ! node scripts/huk-iz-kartochki.mjs "$DEN"; then
+              echo "::error::$DEN: хук не взят из карточки rc-site main (причина — строка выше); старый хук не озвучивается, ролика дня нет"
+              exit 1
+            fi
+            exit 0
+          fi
+          dd=${DEN:2:2}; m=${DEN:4:3}
+          mm=$(echo "$mes" | tr ',' '\n' | grep -nx "$m" | cut -d: -f1)
+          [ -n "$mm" ] || { echo "::error::$DEN: не понять месяц «$m»"; exit 1; }
+          key=$(printf '%02d-%s' "$mm" "$dd")
+          if ! node scripts/scenarij.mjs "$key"; then
+            echo "::error::$DEN: сценарий не собран из файла дня rc-site ${RC_SITE_REF:-main} src/content/dni-shablon/ne-sdayutsya/$key.yaml (причина — строка ✗ выше); старый сценарий не озвучивается, ролика дня нет"
+            exit 1
+          fi
+          node scripts/scenarij.mjs "$key" --sverit || exit 1
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: scenarij-${{ matrix.day }}
+          path: |
+            days/${{ matrix.day }}.json
+            kadry/${{ matrix.day }}/
+          if-no-files-found: error
+          retention-days: 14
+  ozvuchka:
+    needs: [plan, scenarij]
+    # упал scenarij у одного дня — падает только этот день
+    if: >-
+      always() && inputs.ozvuchka && needs.plan.result == 'success'
+      && needs.scenarij.result != 'cancelled'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45  # повтор ≈1,5 мин на сцену, части, затем день запасным голосом (Р765)
     strategy:
       fail-fast: false
       max-parallel: 2  # служба голоса не любит разом много заданий (r260, r264)
@@ -72,19 +201,35 @@ jobs:
     name: ozvuchka-${{ matrix.day }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      # имена и названия с ударениями — один словарь сайта для всех роликов (п. 39), штатным checkout
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          repository: arabelthera-dot/rc-site
+          path: rc-site-slovar
+          sparse-checkout: src/data/spravochniki/udareniya.json
+          sparse-checkout-cone-mode: false
+          persist-credentials: false
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: scenarij-${{ matrix.day }}
       - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
         with:
           python-version: "3.11"
       # ffmpeg закреплённой версии, один шаг на весь rc-rolik (r544 п.6): apt вис на 20–36 мин (r277, r283)
       - uses: ./.github/actions/ffmpeg
       - run: pip install -q edge-tts==7.3.1 numpy==2.4.6 scipy==1.17.1
-      # озвученные сцены (seg*.mp3 + seg*.json с ключом текста) переживают перезапуск: tts.py их не переозвучивает (r264)
+      # озвученные сцены (seg*.mp3 + seg*.json с ключом текста) переживают перезапуск: tts.py их не переозвучивает (r264);
+      # неполная сцена (слов от службы < 0,9 слов текста, мерка skleika гида) из кэша не берётся — идёт в edge-tts заново (Р784)
       - uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
           path: public/days/${{ matrix.day }}/seg*
           key: tts-${{ matrix.day }}-${{ github.run_id }}-${{ github.run_attempt }}
           restore-keys: tts-${{ matrix.day }}-
+      - if: inputs.zapasnoj_golos
+        run: pip install -q piper-tts==1.8.0
       - run: python scripts/tts.py "${{ matrix.day }}"
+        env:
+          ZAPASNOJ_GOLOS: ${{ inputs.zapasnoj_golos && 'piper' || '' }}
       - if: always()
         uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
@@ -100,11 +245,17 @@ jobs:
             public/days/${{ matrix.day }}/sfx.wav
             public/days/${{ matrix.day }}/mix.mp3
             public/days/${{ matrix.day }}/timeline.json
+            public/days/${{ matrix.day }}/voice.words.json
+            public/days/${{ matrix.day }}/voice.srt
+            public/days/${{ matrix.day }}/voice.vtt
+            public/days/${{ matrix.day }}/voice.txt
             public/days/${{ matrix.day }}/day.json
           retention-days: 14
   layers:
-    needs: plan
-    if: inputs.sloi
+    needs: [plan, scenarij]
+    if: >-
+      always() && inputs.sloi && needs.plan.result == 'success'
+      && needs.scenarij.result != 'cancelled'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     strategy:
@@ -114,6 +265,9 @@ jobs:
     name: layers-${{ matrix.day }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: scenarij-${{ matrix.day }}
       - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
         with:
           python-version: "3.11"
@@ -128,12 +282,13 @@ jobs:
             public/days/${{ matrix.day }}/images.json
           retention-days: 14
   render:
-    needs: [plan, ozvuchka, layers]
+    needs: [plan, scenarij, ozvuchka, layers]
     # озвучка/слои выключены — шаг пропущен (skipped), берётся готовое из репо.
     # Упали у одного дня — остальные дни собираются: у дня без голоса/слоёв нет артефакта,
     # download-artifact падает, и падает только его сборка (старый голос из репо не берётся) (r264)
     if: >-
       always() && needs.plan.result == 'success'
+      && needs.scenarij.result != 'cancelled'
       && needs.ozvuchka.result != 'cancelled' && needs.layers.result != 'cancelled'
     runs-on: ubuntu-latest
     timeout-minutes: 60
@@ -143,6 +298,9 @@ jobs:
     name: ${{ matrix.day }}-${{ matrix.v }}-${{ matrix.f }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: scenarij-${{ matrix.day }}
       - if: inputs.ozvuchka
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
@@ -153,22 +311,75 @@ jobs:
         with:
           name: layers-${{ matrix.day }}
           path: public/days/${{ matrix.day }}
-      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+      # кэш по содержимому (r713 п.60), как ключ actions/cache от hashFiles: входы те же — ролик тот же
+      - id: otp
+        if: inputs.kesh
+        run: echo "sha=$(sh scripts/otpechatok.sh "${{ matrix.day }}" "${{ matrix.v }}" "${{ matrix.f }}")" >> "$GITHUB_OUTPUT"
+      - id: kesh
+        if: inputs.kesh
+        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: |
+            out/*.mp4
+            out/*-poster.jpg
+            out/*.sec
+          key: rolik-${{ matrix.day }}-${{ matrix.v }}-${{ matrix.f }}-${{ steps.otp.outputs.sha }}
+      - if: steps.kesh.outputs.cache-hit == 'true'
+        run: |
+          echo "::notice::${{ matrix.day }}-${{ matrix.v }}-${{ matrix.f }}: входы не менялись (отпечаток ${{ steps.otp.outputs.sha }}) — ролик из кэша, без пересборки"
+      - if: steps.kesh.outputs.cache-hit != 'true'
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: 22
           cache: npm
       # ffmpeg закреплённой версии, один шаг на весь rc-rolik (r544 п.6): apt вис на 20–36 мин (r277, r283)
-      - uses: ./.github/actions/ffmpeg
-      - run: npm ci
-      - run: node scripts/render.mjs "${{ matrix.day }}" "${{ matrix.v }}" "${{ matrix.f }}"
+      - if: steps.kesh.outputs.cache-hit != 'true'
+        uses: ./.github/actions/ffmpeg
+      - if: steps.kesh.outputs.cache-hit != 'true'
+        run: npm ci
+      - if: steps.kesh.outputs.cache-hit != 'true'
+        run: node scripts/render.mjs "${{ matrix.day }}" "${{ matrix.v }}" "${{ matrix.f }}"
       # одна проверка формата (r544 п.6, аудит r530 п.65): кадр 16:9/9:16, длительность, звук, размер; брак — красное задание, выпуска нет.
       # Она же пишет <ролик>.sec — длительность для выпуска на сайт; больше ролик никто не перемеряет.
-      - run: node scripts/format.mjs out/*.mp4
+      - if: steps.kesh.outputs.cache-hit != 'true'
+        run: node scripts/format.mjs out/*.mp4
       # обложка (кадр 1 с) — здесь, где есть ffmpeg: выпуск на сайт её только переименовывает (r538)
-      - run: |
+      - if: steps.kesh.outputs.cache-hit != 'true'
+        run: |
           for f in out/*.mp4; do
             ffmpeg -v error -y -ss 1 -i "$f" -frames:v 1 -q:v 3 "${f%.mp4}-poster.jpg"
           done
+      # собранный и проверенный формой ролик — в кэш под его отпечатком
+      - if: inputs.kesh && steps.kesh.outputs.cache-hit != 'true'
+        uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: |
+            out/*.mp4
+            out/*-poster.jpg
+            out/*.sec
+          key: rolik-${{ matrix.day }}-${{ matrix.v }}-${{ matrix.f }}-${{ steps.otp.outputs.sha }}
+      # слои звука (r713 п.65): один раз на день-вариант, при 16x9 — голос и звук у форматов общие
+      - if: inputs.sloi_zvuka && matrix.f == '16x9'
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: "3.11"
+      - if: inputs.sloi_zvuka && matrix.f == '16x9' && inputs.whisper
+        run: pip install -q faster-whisper==1.2.1
+      - if: inputs.sloi_zvuka && matrix.f == '16x9'
+        uses: ./.github/actions/ffmpeg
+      - if: inputs.sloi_zvuka && matrix.f == '16x9'
+        run: python scripts/sloi_zvuka.py "${{ matrix.day }}" "out/${{ matrix.day }}-${{ matrix.v }}-${{ matrix.f }}" ${{ inputs.whisper && '--whisper' || '' }}
+      # субтитры и текст ролика (r725 п.131, п.138): всегда рядом с mp4 16x9 — <ролик>.vtt (WebVTT, строки из сценария
+      # по времени голоса) и <ролик>.txt (сценарий дословно); слои звука уже положили — не трогаем. Откат: убрать шаг.
+      - if: matrix.f == '16x9'
+        run: |
+          d="public/days/${{ matrix.day }}"; o="out/${{ matrix.day }}-${{ matrix.v }}-${{ matrix.f }}"
+          for x in vtt srt txt; do if [ -f "$d/voice.$x" ] && [ ! -f "$o.$x" ]; then cp "$d/voice.$x" "$o.$x"; fi; done
+      # приёмка ролика (Р715, п.62) — подсказка в сводку прогона: звук, тишина, громкость, длина, субтитры, чёрные кадры.
+      # Не проверка (Р627): выход всегда 0, continue-on-error, выпуск не ждёт. Ролик из кэша уже принимался — пропуск.
+      - if: steps.kesh.outputs.cache-hit != 'true'
+        continue-on-error: true
+        run: python3 scripts/priemka.py out/*.mp4
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: ${{ matrix.day }}-${{ matrix.v }}-${{ matrix.f }}
@@ -176,6 +387,11 @@ jobs:
             out/*.mp4
             out/*-poster.jpg
             out/*.sec
+            out/*-golos.mp3
+            out/*-shum.mp3
+            out/*.srt
+            out/*.vtt
+            out/*.txt
           retention-days: 14
   # Выпуск на сайт (r538/r544): общий шаг .github/workflows/vypusk.yml — тот же, что ручной выпуск из готового прогона.
   vypusk:
@@ -191,6 +407,8 @@ jobs:
     uses: ./.github/workflows/vypusk.yml
     with:
       day: ${{ matrix.day }}
+    secrets:
+      RC_SITE_SIGNAL: ${{ secrets.RC_SITE_SIGNAL }}
   zastavka3d:
     if: inputs.zastavka3d != ''
     runs-on: ubuntu-latest

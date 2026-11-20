@@ -1,7 +1,7 @@
 # Ролики «Русской цивилизации» — сборка на машинах GitHub
 
 Шаблон ролика дня на Remotion. Всё собирается здесь, сценарий `.github/workflows/render.yml`: слои кадров
-(`scripts/layers.py`, подлинные кадры из `kadry/<день>/`), голос (`scripts/tts.py`, словарь `udareniya.json`) и звук
+(`scripts/layers.py`, подлинные кадры из `kadry/<день>/`), голос (`scripts/tts.py`, словарь `udareniya.json`, имена — из словаря сайта `rc-site/src/data/spravochniki/udareniya.json`) и звук
 (`scripts/sfx.py`) — один раз на день, каждый файл ролика — на своей машине.
 Поправили словарь или сценарий — достаточно коммита и запуска; `-f ozvuchka=false` / `-f sloi=false` — взять готовую озвучку / слои из репо.
 
@@ -14,6 +14,12 @@
 
 Запуск: `gh workflow run render.yml -R arabelthera-dot/rc-rolik -f zadacha="05jan:AB"`;
 готовое — `gh run download <номер> -R arabelthera-dot/rc-rolik -D out/`.
+
+До ролика, только подсказки в `out/` (кадры и сценарии не меняют): `RC_SITE=~/rc-site python3 scripts/podbor.py <музей> <ММ-ДД> [--cfg days/<день>.json]` —
+3 кандидата из медиатеки к каждой сцене (BM25 по подписям картинок, п.63); `python3 scripts/razmytye.py <день>` или `--muzei <музей> --key <ММ-ДД>` —
+размытые кадры дня (лапласиан после медианы 3×3 — без зерна скана, порог 40, п.73).
+После ролика, тоже подсказка (Р715, п.62): `python3 scripts/priemka.py out/*.mp4 [--timeline …] [--dlina с] [--srt …]` — отчёт по-русски: звук, тишина > 1,5 с,
+громкость против −16 LUFS, длина против timeline.json, конец субтитров против голоса, чёрные кадры; выход всегда 0, в render.yml — шаг continue-on-error в сводку прогона.
 
 # Ролик дня на Remotion (проба по Р233, день 5 января — Шухов)
 
@@ -35,6 +41,7 @@ export PLAYWRIGHT_SKIP_VALIDATE_HOST_REQUIREMENTS=1 LD_LIBRARY_PATH=$HOME/opt/li
 PY=~/.venvs/agent/bin/python
 $PY scripts/tts.py 05jan     # голос edge-tts ru-RU-DmitryNeural +18%, слова WordBoundary -> timeline.json
 $PY scripts/layers.py 05jan  # 2.5D: подлинные кадры -> фон + передний план (band / GrabCut)
+$PY scripts/sloi_zvuka.py 05jan out/05jan-A-16x9 [--whisper]  # слои звука рядом с роликом: -golos.mp3, -shum.mp3, .srt/.vtt; без слов edge-tts — whisper (r713 п.65, п.66)
 $PY scripts/sfx.py 05jan     # звуковые акценты + сведение -> mix.mp3
 # только для варианта Б: кадрирование правее решётчатой вышки и до 5,0 с (без качалок XX в.), растяжка до длины хука
 ffmpeg -y -t 5.0 -i genosai/insert-raw.mp4 -vf "crop=1100:619:820:360,setpts=1.12*PTS,scale=1920:1080:flags=lanczos,fps=30" -an -c:v libx264 -crf 18 -pix_fmt yuv420p public/days/05jan/insert.mp4
@@ -43,6 +50,7 @@ node scripts/render.mjs 05jan AB   # -> out/05jan-A-16x9.mp4, -A-9x16, -B-16x9, 
 Chromium: `~/.cache/ms-playwright/chromium_headless_shell-1234/.../chrome-headless-shell` (переопределить — `CHROME=`), `--gl=swangle`.
 Быстрый кадр: `npx remotion still src/index.ts Day9x16 f.jpg --frame=30 --props='{"day":"05jan","variant":"A"}' --browser-executable=$CHROME --gl=swangle`.
 
+Раскадровка дня изобретений машиной из полей сайта (карточка hook, yaml: обложка, кадры фактов, figures; текст фактов — утверждённое): `node scripts/scenarij.mjs 02-02 --muzej=izobreteniya --v=<папка>` — пишет `<папка>/days/02feb.json` и `<папка>/kadry/02feb/`; готовый `days/<день>.json` перезаписывается только с `--zamenit`; не хватает поля — пишет, какого. Подписи (labels), plate/years и say словами — по-прежнему руками.
 Новый день: скопировать `days/05jan.json`, вписать `segments` (say — что говорит голос, show — как писать в субтитрах цифрами; image; fx: pipe-sweep | dust | formulas | pipeline-map | tower-mesh | endcard) и `images` (src из pilot-izobreteniya, `band` — где начинается передний план, или `fg_rect` для GrabCut; `"parallax": false` — без переднего плана, если полоса даёт шов). Факты — только из md дня.
 
 ## Музыка и звук — лицензия

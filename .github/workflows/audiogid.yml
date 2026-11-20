@@ -1,12 +1,14 @@
 # ВРЕМЕННО (Р312, 28.10.2026): движок озвучки будет заменён на голос Сергея (Р312); новые гиды этим движком на сайт не выпускать.
 # edge-tts здесь — временный движок до перехода на собственный голос Сергея.
 # Озвучка аудиогида отдельно от роликов (r310, 28.10.2026): локально edge-tts отдаёт NoAudioReceived,
-# в облаке работает. Голос, ударения (udareniya.json) и повторы — из scripts/tts.py, render.yml не трогается.
+# в облаке работает. Голос, ударения (udareniya.json + имена из словаря сайта) и повторы — из scripts/tts.py, render.yml не трогается.
 # Только ручной запуск. Выход — артефакт audiogid-<день>: <день>.mp3, <день>.json (длительности абзацев), p*.mp3.
 # Каждый абзац — на своей машине: служба душит одну машину после ~минуты звука подряд (прогон 40637307820 — час отказов).
 # Текст из этого репо:   gh workflow run audiogid.yml -f put=audiogid/01-20.yaml
 # Текст со страницы сайта: gh workflow run audiogid.yml -f vetka_sajta=main -f put=src/content/dni-shablon/izobreteniya/01-17.yaml
 name: audiogid
+# имя прогона = путь и ключ текста: avto.yml по нему видит, что этот текст уже озвучивали (r685)
+run-name: audiogid ${{ inputs.put }} ${{ inputs.klyuch }}
 on:
   workflow_dispatch:
     inputs:
@@ -22,12 +24,24 @@ on:
       temp:
         description: "скорость edge-tts"
         default: "+18%"
+      klyuch:
+        description: "ключ текста (ставит avto.yml), только для имени прогона"
+        default: ""
+      pauzy:
+        description: "1 — обрезать тишину по краям абзацев и сжать паузы > 0,7 с (r713 п.64, scripts/zvuk.py)"
+        default: "0"
+# По одному прогону на день (Р789): общая группа держала в очереди один прогон, остальные GitHub отменял —
+# 17 из 59 отменены (16.11). Повтор того же дня по-прежнему ждёт свой прогон.
 concurrency:
-  group: audiogid  # прогоны по одному (r260)
+  group: audiogid-${{ inputs.put }}
   cancel-in-progress: false
 env:
   GOLOS: ${{ inputs.golos || 'ru-RU-DmitryNeural' }}
   TEMP: ${{ inputs.temp || '+18%' }}
+  AUDIO_PAUZY: ${{ inputs.pauzy || '0' }}
+# Права по умолчанию — только чтение (п.502, Р745); запись — у задания выпуска.
+permissions:
+  contents: read
 jobs:
   razbor:
     runs-on: ubuntu-latest
@@ -66,6 +80,12 @@ jobs:
           echo "den=$(basename "$PUT" .yaml)" >> "$GITHUB_OUTPUT"
       - id: n
         run: echo "abzacy=$(python scripts/audiogid.py chislo '${{ steps.vhod.outputs.f }}')" >> "$GITHUB_OUTPUT"
+      - if: inputs.vetka_sajta != ''
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: vhod
+          path: rc-site/
+          retention-days: 1
   abzac:
     needs: razbor
     runs-on: ubuntu-latest
@@ -77,20 +97,25 @@ jobs:
         i: ${{ fromJSON(needs.razbor.outputs.abzacy) }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      # имена и названия с ударениями — один словарь сайта для всех роликов (п. 39), штатным checkout
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          repository: arabelthera-dot/rc-site
+          path: rc-site-slovar
+          sparse-checkout: src/data/spravochniki/udareniya.json
+          sparse-checkout-cone-mode: false
+          persist-credentials: false
       - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
         with:
           python-version: "3.11"
       - run: pip install -q edge-tts==7.3.1 pyyaml==6.0.2
       # карточка дня с ветки сайта — штатным checkout, а не curl по raw-ссылке (r544 п.6, аудит r530 п.62)
+      # yaml дня — из razbor (Р789): ветку страницы автослияние удаляет, пока идут абзацы, и checkout падал (git exit 1)
       - if: inputs.vetka_sajta != ''
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
-          repository: arabelthera-dot/rc-site
-          ref: ${{ inputs.vetka_sajta }}
+          name: vhod
           path: rc-site
-          sparse-checkout: ${{ inputs.put }}
-          sparse-checkout-cone-mode: false
-          persist-credentials: false
       - id: vhod
         env:
           PUT: ${{ inputs.put }}
@@ -106,7 +131,38 @@ jobs:
           echo "den=$(basename "$PUT" .yaml)" >> "$GITHUB_OUTPUT"
       # ffmpeg закреплённой версии, один шаг на весь rc-rolik (r544 п.6): apt вис на 20–36 мин (r277, r283)
       - uses: ./.github/actions/ffmpeg
-      - run: python scripts/audiogid.py abzac '${{ steps.vhod.outputs.f }}' ${{ matrix.i }} "$GOLOS" "$TEMP" out/audiogid
+      # кэш абзаца (Р784): ключ — хэш текста, голоса, темпа и пауз; тот же абзац при новом прогоне и перезапуске
+      # берётся готовым, в edge-tts идут только за недостающими (brak-stranic п. 14, 28); неполный в кэш не кладётся
+      - id: klyuch
+        env:
+          F: ${{ steps.vhod.outputs.f }}
+          I: ${{ matrix.i }}
+        run: echo "k=$(python scripts/audiogid.py klyuch "$F" "$I" "$GOLOS" "$TEMP")" >> "$GITHUB_OUTPUT"
+      - id: kesh
+        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: |
+            out/audiogid/p${{ matrix.i }}.mp3
+            out/audiogid/p${{ matrix.i }}.json
+          key: audiogid-abzac-${{ steps.klyuch.outputs.k }}
+      - if: steps.kesh.outputs.cache-hit == 'true'
+        env:
+          I: ${{ matrix.i }}
+        run: echo "абзац $I — из кэша, в edge-tts не хожу" | tee -a "$GITHUB_STEP_SUMMARY"
+      - if: steps.kesh.outputs.cache-hit != 'true'
+        run: python scripts/audiogid.py abzac '${{ steps.vhod.outputs.f }}' ${{ matrix.i }} "$GOLOS" "$TEMP" out/audiogid
+      - id: polnyj
+        if: steps.kesh.outputs.cache-hit != 'true'
+        env:
+          I: ${{ matrix.i }}
+        run: echo "da=$(python scripts/audiogid.py v_kesh out/audiogid "$I")" >> "$GITHUB_OUTPUT"
+      - if: steps.polnyj.outputs.da == 'true'
+        uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: |
+            out/audiogid/p${{ matrix.i }}.mp3
+            out/audiogid/p${{ matrix.i }}.json
+          key: audiogid-abzac-${{ steps.klyuch.outputs.k }}
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: abzac-${{ matrix.i }}
@@ -125,15 +181,12 @@ jobs:
           python-version: "3.11"
       - run: pip install -q edge-tts==7.3.1 pyyaml==6.0.2
       # карточка дня с ветки сайта — штатным checkout, а не curl по raw-ссылке (r544 п.6, аудит r530 п.62)
+      # yaml дня — из razbor (Р789): ветку страницы автослияние удаляет, пока идут абзацы, и checkout падал (git exit 1)
       - if: inputs.vetka_sajta != ''
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
-          repository: arabelthera-dot/rc-site
-          ref: ${{ inputs.vetka_sajta }}
+          name: vhod
           path: rc-site
-          sparse-checkout: ${{ inputs.put }}
-          sparse-checkout-cone-mode: false
-          persist-credentials: false
       - id: vhod
         env:
           PUT: ${{ inputs.put }}
@@ -156,7 +209,7 @@ jobs:
           path: out/audiogid/
       - run: |
           python scripts/audiogid.py skleika '${{ steps.vhod.outputs.f }}' "$GOLOS" "$TEMP" out/audiogid '${{ needs.razbor.outputs.den }}'
-          python -c "import json,glob;d=json.load(open(glob.glob('out/audiogid/*-*.json')[0]));print('## Аудиогид',d['den'],'—',d['total'],'с');[print('-',a['i'],a['start'],'+',a['dur'],'с, слов',a['slov_golos'],'/',a['slov_tekst']) for a in d['abzacy']]" >> "$GITHUB_STEP_SUMMARY"
+          python -c "import json,glob;d=json.load(open(glob.glob('out/audiogid/*-*.json')[0]));print('## Аудиогид',d['den'],'—',d['total'],'с');[print('-',a['i'],a['start'],'+',a['dur'],'с, слов',a['slov_golos'],'/',a['slov_tekst'],'БЕЗ знаков ударения' if a.get('bez_udarenij') else '') for a in d['abzacy']]" >> "$GITHUB_STEP_SUMMARY"
       # одна проверка формата (r544 п.6, аудит r530 п.65): одна дорожка mp3, 30 с – 30 мин, ≤ 20 МБ; брак — выпуска нет
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
@@ -189,3 +242,13 @@ jobs:
             --title "Аудиогид $muzei $DEN → $fajl" \
             --notes "Аудиогид $muzei $DEN, голос $GOLOS, прогон $GITHUB_RUN_ID. На сайт придёт заявкой rc-site rolik-na-sait (r538)."
           echo "Выпуск на сайт: https://github.com/$GITHUB_REPOSITORY/releases/tag/$tag" | tee -a "$GITHUB_STEP_SUMMARY"
+      # Сигнал сайту (Р737 п.15, Р790): rolik-na-sait.yml в rc-site забирает выпуск сразу, а не по расписанию раз в час.
+      # Ключ RC_SITE_SIGNAL (Михаил, 10.11) — встроенный ключ в rc-site не пускает. Нет ключа или отказ — только предупреждение: выпуск уже есть, расписание заберёт.
+      - name: Сигнал сайту rolik-gotov
+        env:
+          GH_TOKEN: ${{ secrets.RC_SITE_SIGNAL }}
+        run: |
+          [ -n "$GH_TOKEN" ] || { echo "::warning::нет RC_SITE_SIGNAL — выпуск заберёт расписание rolik-na-sait"; exit 0; }
+          gh api repos/arabelthera-dot/rc-site/dispatches -f event_type=rolik-gotov \
+            && echo "Сигнал rolik-gotov в rc-site отправлен." | tee -a "$GITHUB_STEP_SUMMARY" \
+            || echo "::warning::сигнал rolik-gotov не принят — выпуск заберёт расписание rolik-na-sait"

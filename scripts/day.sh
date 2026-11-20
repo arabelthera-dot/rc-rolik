@@ -1,15 +1,17 @@
 #!/bin/sh
-# Ролик дня одной строкой: scripts/day.sh <день> [A|B|AB] [16x9|9x16|oba] [--lokalno]
+# Ролик дня одной строкой: scripts/day.sh <день> [A|B|AB] [16x9|9x16|oba] [--lokalno] [--ne-zhdat]
 # Сборка — в облаке rc-rolik (render.yml, Р243): здесь только коммит days/<день>.json, kadry/<день>/
 # (и public/days/<день>/insert.mp4 для B), запуск прогона и скачивание готового в out/ — только для показа.
 # На сайт ролик сам приходит заявкой rc-site rolik-na-sait (r538, Р524): облако выпускает vypusk-<день>-<прогон>,
 # если в days/<день>.json есть поле sajt и собраны оба формата. Из out/ на сайт ничего не носить.
 # Голос, звук, слои и рендер идут на машинах GitHub. --lokalno — старая сборка на нашем сервере, только в крайнем случае.
+# --ne-zhdat (r688, Р686 п.3): отдал прогон в облако и вышел — помощник не ждёт сборку, ролик на сайт приносит rolik-na-sait.
+# --proverit (r713): только проверки дня (сценарий, картинки, insert.mp4) — без коммита и прогона; так их зовёт scripts/mesyac.sh.
 set -e
 cd "$(dirname "$0")/.."
 REPO=arabelthera-dot/rc-rolik
-LOKALNO=; ARGS=
-for a; do case $a in --lokalno) LOKALNO=1 ;; *) ARGS="$ARGS $a" ;; esac; done
+LOKALNO=; NE_ZHDAT=; PROVERIT=; ARGS=
+for a; do case $a in --lokalno) LOKALNO=1 ;; --ne-zhdat) NE_ZHDAT=1 ;; --proverit) PROVERIT=1 ;; *) ARGS="$ARGS $a" ;; esac; done
 set -- $ARGS
 DAY=$1; V=${2:-A}; F=${3:-oba}
 [ -n "$DAY" ] || { echo "запуск: scripts/day.sh <день> [A|B|AB] [16x9|9x16|oba] [--lokalno]"; exit 1; }
@@ -28,6 +30,7 @@ if miss:
 E
 # сценарий: fx plate без содержимого и т. п. (scripts/check.mjs, r254) — то же падение, что в облаке, но до пуша
 node scripts/check.mjs "$DAY" || exit 1
+[ -n "$PROVERIT" ] && exit 0
 
 if [ -n "$LOKALNO" ]; then
   echo "ВНИМАНИЕ: --lokalno — сборка на нашем сервере, против Р243 (ролики — в GitHub Actions). Только если облако недоступно и Михаил согласен."
@@ -63,6 +66,12 @@ for i in $(seq 30); do
   [ -n "$ID" ] && break
 done
 [ -n "$ID" ] || oblako_net "прогон не появился"
+# Р789: сигнал rolik-gotov из облака в rc-site не доходит (нет ключа), расписание rolik-na-sait — раз в час.
+# Поэтому отсюда (ключ gh на сервере есть): фоновый ждун выходит вместе с прогоном и после успеха (выпуск уже сделан
+# в том же прогоне) сам зовёт rolik-na-sait — помощник при --ne-zhdat по-прежнему не ждёт. Журнал — /tmp/day-sh-na-sait-<прогон>.log.
+[ "$F" = oba ] && nohup sh -c "gh run watch $ID -R $REPO --exit-status --interval 60 >/dev/null && gh workflow run rolik-na-sait.yml -R arabelthera-dot/rc-site" \
+  >"/tmp/day-sh-na-sait-$ID.log" 2>&1 &
+[ -n "$NE_ZHDAT" ] && { echo "прогон $ID: https://github.com/$REPO/actions/runs/$ID — отдан облаку, не жду. $([ "$F" = oba ] && echo "На сайт — заявка rolik-na-sait (выпуск vypusk-$DAY-$ID)" || echo "Формат не oba — выпуска на сайт не будет")"; exit 0; }
 echo "прогон $ID: https://github.com/$REPO/actions/runs/$ID — жду"
 gh run watch "$ID" -R "$REPO" --exit-status --interval 30 >/dev/null || { echo "прогон $ID упал: https://github.com/$REPO/actions/runs/$ID"; exit 1; }
 TMP=$(mktemp -d)
