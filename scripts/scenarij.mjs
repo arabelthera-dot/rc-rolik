@@ -86,7 +86,8 @@ async function izUtverzhdeno(st, key) {
   return { ...r, iz };
 }
 
-const chistyj = (s) => String(s ?? '').replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim().replace(/([^.!?…»])$/, '$1.');
+// точка в конце фразы; после закрывающей кавычки — тоже (…«Эрнани».), если внутри кавычек нет своего «.!?…» (Р832, журнал 113)
+const chistyj = (s) => String(s ?? '').replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim().replace(/([^.!?…»]»*)$/, '$1.');
 // файл кадра в public — правило сайта failPublic (src/lib/den-obshchee.mjs): «/x» — от корня, иначе от папки музея
 const failPublic = (src) => path.posix.join('public', String(src).startsWith('/') ? path.posix.normalize(String(src).split(/[?#]/)[0]) : path.posix.join(`/muzei/${MUZEJ}/`, String(src).split(/[?#]/)[0]));
 const sek = (segs) => segs.reduce((n, s) => n + s.say.length, 0) / ZNAKOV_V_SEK;
@@ -134,7 +135,8 @@ async function denOdin(key) {
   };
   for (const u of fakty) {
     const say = chistyj(u.summary);
-    if (segs.some((x) => x.say === say)) continue;
+    // факт, равный хуку или уже сказанному, без учёта точки в конце (norm) — не повторяется (Р832, журнал 112)
+    if (segs.some((x) => norm(x.say) === norm(say))) continue;
     const nov = { id: `f${segs.length}`, say, show: say, fx: 'photo' };
     if (sek([...segs, nov, CTA]) + FINAL.length / ZNAKOV_V_SEK > CEL_SEK) break;
     nov.image = kadr(u.kadr?.src && !segs.some((x) => x.image === kadry.get(u.kadr.src)) ? u.kadr.src : svobodnyj());
