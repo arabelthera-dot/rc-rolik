@@ -430,8 +430,8 @@ const Scene: React.FC<{props: Props; seg: DaySeg; tseg: TSeg; t0: number; dur: n
         <Particles kind="dust" n={40} W={W} H={H} seed="end" />
         <div style={{position: 'absolute', left: vertical ? 60 : 140, right: vertical ? 60 : W * 0.4, top: vertical ? H * 0.52 : H * 0.3,
           opacity: a, transform: `translateY(${vyezd(a, 30)}px)`, fontFamily: 'Inter', color: '#fff', textAlign: vertical ? 'center' : 'left'}}>
-          <div style={{fontWeight: 600, fontSize: vertical ? 64 : 64, lineHeight: 1.15}}>Смотри день целиком на</div>
-          <div style={{fontWeight: 800, fontSize: vertical ? 76 : 92, color: AMBER, marginTop: 18, letterSpacing: -1}}>russian-civilization.ru</div>
+          <div style={{fontWeight: 600, fontSize: vertical ? 64 : 64, lineHeight: 1.15}}>Смотри день целиком на сайте</div>
+          <div style={{fontWeight: 800, fontSize: vertical ? 76 : 92, color: AMBER, marginTop: 18, letterSpacing: -1}}>«Русская цивилизация»</div>
         </div>
       </AbsoluteFill>
     );
