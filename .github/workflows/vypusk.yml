@@ -14,6 +14,8 @@ on:
     inputs:
       day: {type: string, required: true}
       run: {type: string, required: false, default: ""}
+    secrets:
+      RC_SITE_SIGNAL: {required: false}
   workflow_dispatch:
     inputs:
       day:
@@ -96,3 +98,13 @@ jobs:
             --title "Выпуск $DAY → $(jq -r '.reestr + "/" + .imya' rel/vypusk.json)" \
             --notes "Ролик $DAY, вариант $V, прогон $RUN. На сайт придёт заявкой rc-site rolik-na-sait (r538)."
           echo "Выпуск на сайт: https://github.com/$GITHUB_REPOSITORY/releases/tag/$tag" | tee -a "$GITHUB_STEP_SUMMARY"
+      # Сигнал сайту (Р737 п.15, Р790): rolik-na-sait.yml в rc-site забирает выпуск сразу, а не по расписанию раз в час.
+      # Ключ RC_SITE_SIGNAL (Михаил, 10.11) — встроенный ключ в rc-site не пускает. Нет ключа или отказ — только предупреждение: выпуск уже есть, расписание заберёт.
+      - name: Сигнал сайту rolik-gotov
+        env:
+          GH_TOKEN: ${{ secrets.RC_SITE_SIGNAL }}
+        run: |
+          [ -n "$GH_TOKEN" ] || { echo "::warning::нет RC_SITE_SIGNAL — выпуск заберёт расписание rolik-na-sait"; exit 0; }
+          gh api repos/arabelthera-dot/rc-site/dispatches -f event_type=rolik-gotov \
+            && echo "Сигнал rolik-gotov в rc-site отправлен." | tee -a "$GITHUB_STEP_SUMMARY" \
+            || echo "::warning::сигнал rolik-gotov не принят — выпуск заберёт расписание rolik-na-sait"
