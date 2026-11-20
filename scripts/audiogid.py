@@ -43,6 +43,9 @@ def abzac(path, i, voice, rate, outdir):
         try:
             words = asyncio.run(synth(s if bez else udar(s), voice, rate, mp3))
             if not words or mp3.stat().st_size < 1000: raise RuntimeError("пустой ответ")
+            # неполный ответ — тот же повтор (Р789): раньше брался с первой попытки и валил skleika «не полностью»;
+            # после последней попытки остаётся последний ответ, мерка в skleika прежняя
+            if k < TRIES - 1 and not polnyj(len(words), slov_v_tekste(s)): raise RuntimeError(f"неполный ответ, слов {len(words)}/{slov_v_tekste(s)}")
             break
         except Exception as e:
             if k == TRIES - 1: raise

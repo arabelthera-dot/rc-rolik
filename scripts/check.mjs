@@ -41,6 +41,9 @@ export const checkLayout = () => {
 export const checkDay = (day) => {
   const cfg = JSON.parse(fs.readFileSync(path.join(ROOT, 'days', `${day}.json`), 'utf8'));
   const errors = [], warnings = [];
+  // Р819: каждый кадр images лежит в репо — layers.py в облаке берёт их только оттуда (02feb, 23feb, 24feb ушли в render без kadry/)
+  for (const [key, im] of Object.entries(cfg.images || {}))
+    if (!fs.existsSync(path.join(ROOT, im.src))) errors.push(`${day}, кадр ${key}: нет файла ${im.src} в репо — layers.py в облаке упадёт; положи его в kadry/${day}/ и закоммить`);
   for (const seg of cfg.segments) {
     if (seg.fx !== 'plate') continue;
     const l = seg.labels || {};
