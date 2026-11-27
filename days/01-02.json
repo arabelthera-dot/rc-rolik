@@ -1,0 +1,66 @@
+{
+ "id": "01-02",
+ "source_md": "src/content/dni-shablon/iskusstvo/01-02.yaml",
+ "voice": "ru-RU-DmitryNeural",
+ "rate": "+18%",
+ "segments": [
+  {
+   "id": "hook",
+   "say": "Это не лошади: в упряжку впряжены трое детей, и перед картиной однажды стояли на коленях, как перед иконой.",
+   "image": "celikom",
+   "fx": "photo"
+  },
+  {
+   "id": "bochka",
+   "say": "Трое детей-мастеровых тащат в гору обледеневшую бочку с водой — вместо лошадей. Так написал «Тройку» художник Василий Перов.",
+   "image": "bochka",
+   "fx": "photo"
+  },
+  {
+   "id": "lico",
+   "say": "Лицо центрального мальчика Перов писал с живого Васи — сына «тётушки Марьи», встреченного у Тверской заставы.",
+   "image": "lico",
+   "fx": "photo"
+  },
+  {
+   "id": "ikona",
+   "say": "Через несколько лет Вася умер от оспы. Мать пришла выкупить картину — и узнала сына по выбитому зубу, встав на колени прямо в зале.",
+   "image": "ikona",
+   "fx": "photo"
+  },
+  {
+   "id": "familiya",
+   "say": "Даже фамилия у художника не своя: «Перова» дал дьячок за красивый почерк. Под этой фамилией он заставил Россию плакать.",
+   "image": "celikom",
+   "fx": "photo"
+  },
+  {
+   "id": "cta",
+   "say": "Смотри день целиком на сайте «Русская цивилизация».",
+   "image": null,
+   "fx": "endcard"
+  }
+ ],
+ "images": {
+  "celikom": {
+   "src": "kadry/01-02/day-01-02-troyka-celikom.jpg",
+   "parallax": false
+  },
+  "bochka": {
+   "src": "kadry/01-02/day-01-02-troyka-bochka.jpg",
+   "parallax": false
+  },
+  "lico": {
+   "src": "kadry/01-02/day-01-02-troyka-lico.jpg",
+   "parallax": false
+  },
+  "ikona": {
+   "src": "kadry/01-02/day-01-02-troyka-ikona.jpg",
+   "parallax": false
+  },
+  "sobaka": {
+   "src": "kadry/01-02/day-01-02-troyka-sobaka.jpg",
+   "parallax": false
+  }
+ }
+}
