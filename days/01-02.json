@@ -3,6 +3,11 @@
  "source_md": "src/content/dni-shablon/iskusstvo/01-02.yaml",
  "voice": "ru-RU-DmitryNeural",
  "rate": "+18%",
+ "sajt": {
+  "muzei": "iskusstvo",
+  "reestr": "iskusstvo",
+  "imya": "02jan-troyka"
+ },
  "segments": [
   {
    "id": "hook",
