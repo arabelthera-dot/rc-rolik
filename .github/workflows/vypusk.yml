@@ -66,7 +66,17 @@ jobs:
           fi
           imya=$(jq -r '.imya // empty' <<<"$s"); muzei=$(jq -r '.muzei // empty' <<<"$s"); reestr=$(jq -r '.reestr // empty' <<<"$s")
           # imya — ключ выпуска в реестре сайта: только латиница, и начинается с ДДмес дня (скопированный чужой sajt не перезапишет чужой ролик)
-          ddmes=$(grep -o '[0-9][0-9][a-z][a-z][a-z]' <<<"$DAY" | head -1)
+          ddmes=$(grep -o '[0-9][0-9][a-z][a-z][a-z]' <<<"$DAY" | head -1 || true)
+          if [ -z "$ddmes" ]; then
+            # день в формате ММ-ДД (искусство и др.): перевести месяц в ДДмес, как MES в скриптах
+            mm=${DAY%%-*}; dd=${DAY#*-}
+            case "$mm" in
+              01) m=jan;; 02) m=feb;; 03) m=mar;; 04) m=apr;; 05) m=may;; 06) m=jun;;
+              07) m=jul;; 08) m=aug;; 09) m=sep;; 10) m=oct;; 11) m=nov;; 12) m=dec;;
+              *) echo "::error::$DAY: не понять месяц «$mm»"; exit 1;;
+            esac
+            ddmes="$dd$m"
+          fi
           if ! grep -Eq '^[a-z0-9-]+$' <<<"$imya$muzei$reestr" || [ -z "$muzei" ] || [ -z "$reestr" ] || [ "${imya#"$ddmes"-}" = "$imya" ]; then
             echo "::error::days/$DAY.json: sajt $s — нужны muzei, reestr, imya латиницей, imya начинается с $ddmes-"; exit 1
           fi
