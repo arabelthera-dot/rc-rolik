@@ -1,0 +1,21 @@
+# Обновления сторонних действий и npm-пакетов — заявками dependabot (r544 п.6, аудит r530 п.61).
+# Как в мире: https://docs.github.com/en/code-security/dependabot/working-with-dependabot/keeping-your-actions-up-to-date-with-dependabot
+# Действия закреплены по SHA с меткой версии в комментарии — dependabot двигает и SHA, и метку.
+# Заявки dependabot сливаются, как все: после зелёной proverka.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directories: ["/", "/.github/actions/ffmpeg"]
+    schedule:
+      interval: weekly
+    groups:
+      actions:
+        patterns: ["*"]
+  - package-ecosystem: npm
+    directories: ["/", "/zastavka3d"]
+    schedule:
+      interval: weekly
+    groups:
+      remotion:
+        patterns: ["remotion", "@remotion/*"]
+    open-pull-requests-limit: 3

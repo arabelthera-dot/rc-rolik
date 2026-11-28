@@ -1,8 +1,11 @@
 # Лёгкая проверка заявок (r397, 28.10.2026): без рендера, без озвучки, без секретов — секунды на машине GitHub.
 # Нужна, чтобы слияние шло по правилу «все проверки зелёные». Проверяет:
 # - workflows — actionlint (бинарник закреплён по sha256 выпуска v1.7.12);
+# - общий ffmpeg (.github/actions/ffmpeg) ставится и умеет нужные фильтры;
+# - scripts/format.mjs --proba — проверка формата ловит брак на образцах;
 # - scripts/*.py — python -m py_compile;
-# - все *.json — разбор python json, все *.yml/*.yaml — разбор yq.
+# - все *.json — разбор python json, все *.yml/*.yaml — разбор yq;
+# - замок хука (r544 п.5, Р536, Р765): days/*.json — первая сцена = хук карточки rc-site (main или открытой заявки дня), у ns кадры свои.
 name: proverka
 on:
   pull_request:
@@ -18,7 +21,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           persist-credentials: false
       - name: actionlint
@@ -31,6 +34,22 @@ jobs:
           echo "$SHA  /tmp/$f" | sha256sum -c -
           tar -xzf "/tmp/$f" -C /tmp actionlint
           /tmp/actionlint -color
+      # zizmor и gitleaks (п.502 плана, Р745, 10.11.2026): опасные места процессов и ключи в коммитах.
+      # Как в мире — https://docs.zizmor.sh/usage/#use-in-github-actions, https://github.com/gitleaks/gitleaks#docker.
+      - name: zizmor — процессы без опасных мест
+        run: pipx run zizmor==1.32.0 --offline --min-severity high .github/workflows
+      - name: gitleaks — ключей в рабочей копии нет
+        run: docker run --rm -v "$PWD:/repo" ghcr.io/gitleaks/gitleaks:v8.30.1 dir /repo --redact --no-banner
+      # общий ffmpeg (r544 п.6): ставится, и в нём есть фильтры, которые зовут scripts/sfx.py и audiogid.py
+      - uses: ./.github/actions/ffmpeg
+      - name: ffmpeg — нужные фильтры
+        run: |
+          for f in alimiter loudnorm amix apad; do
+            ffmpeg -hide_banner -filters | grep -qw "$f" || { echo "::error::в ffmpeg нет фильтра $f"; exit 1; }
+          done
+      # проверка формата ролика и гида ловит каждый брак на образцах (Р507): квадрат, без звука, длительность, вес
+      - name: node scripts/format.mjs --proba
+        run: node scripts/format.mjs --proba
       - name: python -m py_compile scripts/*.py
         run: python3 -m py_compile scripts/*.py
       - name: JSON
@@ -47,3 +66,10 @@ jobs:
             yq "." "$f" >/dev/null || { echo "::error file=$f::битый YAML"; rc=1; }
           done < <(git ls-files -z '*.yml' '*.yaml')
           exit "$rc"
+      # Р819: сценарии days/*.json проверяются на чистой копии репо — кадр, не попавший в коммит, ловится до render.yml
+      - name: node scripts/check.mjs
+        run: node scripts/check.mjs
+      - name: замок хука
+        env:
+          GITHUB_TOKEN: ${{ github.token }}  # Р765: список открытых заявок rc-site — хук из заявки страницы (r763)
+        run: node scripts/zamok-huk.mjs

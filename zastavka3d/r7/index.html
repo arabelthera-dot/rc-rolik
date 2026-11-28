@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>r7-3d-zastavka</title>
+<link rel="stylesheet" href="assets/igra-soberi-r7.css">
+<link rel="stylesheet" href="assets/igra-soberi-r7-3d.css">
+<style>
+  /* Заставка (r521): только сцена, без текста. Размер сцены задаёт съёмка (?w=&h=). */
+  html,body{margin:0;padding:0;background:#000;overflow:hidden}
+  #r3{margin:0;padding:0;border:0}
+  #r3Stage{position:absolute;left:0;top:0;aspect-ratio:auto;border:0}
+  .r3-under{display:none}
+</style>
+</head>
+<body>
+<div class="lab r3" id="r3" data-sostoyanie="zhdet">
+  <div class="r3-stage" id="r3Stage">
+    <div class="r3-poster" aria-hidden="true"><span class="r3-poster-c"></span><span class="r3-poster-b l"></span><span class="r3-poster-b r"></span></div>
+  </div>
+  <div class="r3-under">
+    <p class="r3-hint" id="r3Hint"></p>
+    <div class="lab-btns r3-start"><button class="btn gold" type="button" id="r3Run"></button></div>
+    <div class="r3-count" id="r3Count"></div>
+    <div class="r3-ctrl" id="r3Ctrl" hidden>
+      <button class="seg" type="button" data-k="scheme" data-v="tandem" aria-pressed="true"></button>
+      <button class="seg" type="button" data-k="scheme" data-v="pack" aria-pressed="false"></button>
+      <button class="seg" type="button" data-k="drop" data-v="keep" aria-pressed="true"></button>
+      <button class="seg" type="button" data-k="drop" data-v="drop" aria-pressed="false"></button>
+      <button class="btn gold" type="button" id="r3Go"></button>
+      <button class="btn ghost" type="button" id="r3Reset"></button>
+      <button class="btn ghost" type="button" id="r3Snd" aria-pressed="true"></button>
+    </div>
+    <div class="lab-msg" id="r3Msg"></div>
+    <div class="lab-found" id="r3Found"></div>
+    <div class="r3-text" id="r3Text" hidden></div>
+  </div>
+</div>
+<script>
+  (function(){ var q = new URLSearchParams(location.search), s = document.getElementById('r3Stage');
+    s.style.width = (q.get('w') || 1280) + 'px'; s.style.height = (q.get('h') || 800) + 'px'; })();
+</script>
+<script src="soberi-r7-3d.js"></script>
+</body>
+</html>
